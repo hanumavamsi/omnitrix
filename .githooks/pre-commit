@@ -1,0 +1,8 @@
+#!/bin/sh
+# Block commits that contain secrets. Install gitleaks: winget install Gitleaks.Gitleaks
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not installed — refusing to commit (secrets check is mandatory)." >&2
+  echo "Install: winget install Gitleaks.Gitleaks  (or brew install gitleaks)" >&2
+  exit 1
+fi
+exec gitleaks git --pre-commit --staged --redact --verbose

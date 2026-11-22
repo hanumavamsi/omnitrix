@@ -1,0 +1,40 @@
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+profile.json
+auth.json
+credentials*.json
+secrets/
+
+# --- local runtime data (personal, page content) ---
+traces/
+.omnitrix/
+chrome-profile/
+*.sqlite
+*.db
+
+# --- models (large) ---
+models/
+*.onnx
+*.bin
+*.gguf
+
+# --- build / deps ---
+node_modules/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+
+# --- os / editor ---
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log

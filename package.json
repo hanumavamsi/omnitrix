@@ -1,0 +1,22 @@
+{
+	"name": "omnitrix",
+	"private": true,
+	"type": "module",
+	"license": "MIT",
+	"engines": {
+		"node": ">=22"
+	},
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"scripts": {
+		"test": "vitest run",
+		"lint": "biome check ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.6.8",
+		"typescript": "^7.0.2",
+		"vitest": "^5.1.1"
+	}
+}
