@@ -43,3 +43,29 @@ Code: `spikes/02-overlay/` (Electron 45.4.1). Laptop 1280×800 @150% + external 
 
 - Rebuild the overlays on `display-added` / `display-removed` / `display-metrics-changed` (P1).
 - Choose the overlay from the Omnitrix Chrome window's display instead of the cursor (after spike 5).
+
+## 3. Selection grab (2026-11-22) — mostly done, VS Code pending
+
+Code: `spikes/03-selection/main.js` (Electron 45 + `koffi` for user32). Tested by an automated sub-agent (fake keys + screenshots).
+
+| Case | Result |
+| --- | --- |
+| Notepad, text selected | grabbed, clipboard restored, about 47ms copy |
+| Notepad, nothing selected | `NONE`, clipboard untouched |
+| Chrome web page | grabbed, DevTools did **not** open (the wait-for-release works) |
+| Chrome PDF viewer | grabbed (needs focus inside the document) |
+| Copied files on clipboard | file drop list survived the restore |
+| VS Code (selection / none) | **not tested**: VS Code update lock blocked a second instance |
+
+**Surprises**
+
+- **Electron 45 clipboard is async and W3C-style**: only `read/write/readText/writeText/has/clear`. `readImage/readHTML/readRTF` are gone. Snapshot = `await clipboard.read()` plus eager `getType()` for each type; restore = `clipboard.write(items)`.
+- The hotkey's Ctrl+Shift are still held when it fires. Sending Ctrl+C right away becomes Ctrl+Shift+C (Chrome DevTools inspect). Waiting for release (about 107ms in tests) fixes it.
+- Windows timers tick about every 15.6ms. A `50 × sleep(10)` loop took about 830ms, not 500ms. Use deadlines (`performance.now()`), not loop counts. Fixed.
+- If the target app is in menu or KeyTips mode (a bare Alt press in Win11 Notepad), our Ctrl+C is swallowed and the result reads `NONE`.
+- `restoredOk` compares plain text only. Only some formats are captured (Electron exposes a subset). Rich or app-private clipboards may degrade.
+
+**Follow-ups**
+
+- Re-test VS Code after its update. Expect Ctrl+C with no selection to copy the whole line, so we need "no selection" detection there.
+- Our temporary clipboard entry likely shows up in Win+V history (unchecked).
