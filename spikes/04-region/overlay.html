@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>region</title>
+<style>
+	html, body { margin: 0; height: 100%; overflow: hidden; cursor: crosshair; user-select: none; }
+	body { background: rgba(0, 0, 0, 0.35); }
+	#box { position: fixed; display: none; border: 2px solid #00ff66; background: rgba(0, 255, 102, 0.06);
+		box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25); box-sizing: border-box; }
+	#panel { position: fixed; display: none; width: 420px; max-height: 50vh; overflow: auto; padding: 10px 12px;
+		background: rgba(4, 6, 5, 0.92); color: #dfe8e3; border-left: 2px solid #00ff66; cursor: default;
+		font: 13px/1.5 "JetBrains Mono", Consolas, monospace; white-space: pre-wrap; user-select: text; }
+	#q { width: 100%; box-sizing: border-box; background: transparent; color: inherit; border: 0;
+		border-bottom: 1px solid #2c3a33; font: inherit; outline: none; }
+	#hint { position: fixed; left: 50%; top: 24px; transform: translateX(-50%); color: #dfe8e3;
+		font: 13px Consolas, monospace; background: rgba(4, 6, 5, 0.85); padding: 6px 12px; }
+</style>
+</head>
+<body>
+<div id="hint">drag a box · Esc cancels</div>
+<div id="box"></div>
+<div id="panel"><input id="q" placeholder="question (optional) · Enter"><div id="out"></div></div>
+<script>
+	const box = document.getElementById("box");
+	const panel = document.getElementById("panel");
+	const q = document.getElementById("q");
+	const out = document.getElementById("out");
+	let start = null;
+	let rect = null;
+	let req = 0; // bumps on every reset/ask; a reply whose id is stale is dropped
+
+	function reset() {
+		req++;
+		start = rect = null;
+		box.style.display = panel.style.display = "none";
+		q.value = out.textContent = "";
+	}
+	omni.onReset(reset);
+
+	addEventListener("mousedown", (e) => {
+		if (panel.contains(e.target)) return;
+		reset();
+		start = { x: e.clientX, y: e.clientY };
+		box.style.display = "block";
+	});
+	addEventListener("mousemove", (e) => {
+		if (!start) return;
+		// Clamp to this monitor: dragging past its edge must not leave the overlay.
+		const cx = Math.min(Math.max(e.clientX, 0), innerWidth);
+		const cy = Math.min(Math.max(e.clientY, 0), innerHeight);
+		rect = {
+			x: Math.min(start.x, cx), y: Math.min(start.y, cy),
+			width: Math.abs(cx - start.x), height: Math.abs(cy - start.y),
+		};
+		Object.assign(box.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+	});
+	addEventListener("mouseup", () => {
+		if (!start) return;
+		start = null;
+		if (!rect || rect.width < 8 || rect.height < 8) return reset(); // a click, not a drag
+		// Panel on whichever side of the box has more room, capped to that room so it never runs off-screen.
+		const roomBelow = innerHeight - (rect.y + rect.height) - 16;
+		const roomAbove = rect.y - 16;
+		panel.style.left = `${Math.max(8, Math.min(rect.x, innerWidth - 440))}px`;
+		if (roomBelow >= roomAbove) {
+			Object.assign(panel.style, { top: `${rect.y + rect.height + 8}px`, bottom: "auto", maxHeight: `${Math.min(roomBelow, innerHeight / 2)}px` });
+		} else {
+			Object.assign(panel.style, { top: "auto", bottom: `${innerHeight - rect.y + 8}px`, maxHeight: `${Math.min(roomAbove, innerHeight / 2)}px` });
+		}
+		panel.style.display = "block";
+		q.focus();
+	});
+	q.addEventListener("keydown", async (e) => {
+		if (e.key !== "Enter" || !rect) return;
+		out.textContent = "…";
+		const id = ++req;
+		try {
+			const r = await omni.region(rect, q.value);
+			if (id !== req) return; // user moved on: drop the late answer
+			out.textContent = `${r.answer}\n\n[${r.log.capture_ms}ms capture · ${r.log.gemini_ms}ms model · ${r.log.tokens?.promptTokenCount ?? "?"} in-tokens]`;
+		} catch (err) {
+			if (id === req) out.textContent = String(err);
+		}
+	});
+	addEventListener("keydown", (e) => {
+		if (e.key === "Escape") { reset(); omni.cancel(); }
+	});
+</script>
+</body>
+</html>
