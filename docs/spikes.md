@@ -109,3 +109,42 @@ Code: `spikes/04-region/` (Electron 45, `desktopCapturer` in main, raw Gemini RE
 **Not handled:** a box nearly the full screen height leaves no room for the panel. In the real app, the panel should then sit inside the box.
 
 **Testing note:** Win11 Notepad shares one process across windows, so the tester must never kill Notepad (by name or PID). Test apps are now the tester's own PowerShell WinForms windows.
+
+## 5. Playwright + dedicated Chrome profile (2026-11-23) — done, D2 needs a rethink
+
+Code: `spikes/05-browser/main.js` (Electron main + `playwright-core@1.65.0`, `channel: "chrome"` = installed Chrome 158, profile `%LOCALAPPDATA%\omnitrix-spike5\chrome-profile`). Tested by the automated sub-agent: the spike run on both monitors, plus one real user flow per site at human pace with default launch args (no stealth tweaks).
+
+| Site | Loads | Real flow | Notes |
+| --- | --- | --- | --- |
+| Google Flights | yes | **PASS**: HYD→DEL one-way, results 1s after Search | Origin field opens a "Where else?" multi-select popup |
+| YouTube | yes | **PASS**: search "lofi", first video plays (ad, then stream) | Empty profile, so the home page is "Try searching" |
+| Air India | yes | **FAIL, silent**: results page stays empty | `net::ERR_FAILED https://api.airindia.com/cbiz-booking/v2/prime/auth/token` |
+| IndiGo | widget missing | **FAIL, escalating**: by the 4th visit the home page itself fails | `net::ERR_HTTP2_PROTOCOL_ERROR`, plus a `403` on `api-6eskypulse.goindigo.in/ingest/v1/web/start` |
+
+No CAPTCHA or block page anywhere: the airlines fail quietly at the network level. `navigator.webdriver` is `true`. **A control run in plain Chrome (no Playwright, fresh profile, same network) loaded IndiGo fine**, so the block is triggered by automation, not by the IP.
+
+**Snapshot size** (`page.ariaSnapshot({ mode: "ai" })`, with refs; tokens ≈ chars/4)
+
+| Page | chars | refs | ≈ tokens |
+| --- | --- | --- | --- |
+| YouTube home / results | 5.7k / 50.8k | 82 / 592 | 1.4k / 12.7k |
+| Google Flights home / results | 16.3k / 49.7k | 214 / 568 | 4k / 12.4k |
+| IndiGo home | 33.9k | 351 | 8.5k |
+| Air India home / with calendar open | 44.9k / 151k | 603 / 1953 | 11k / **38k** |
+
+Results pages run about 12k tokens. Calendars blow up the snapshot, so it needs scoping to a region or pruning.
+
+**Ghost cursor mapping: solved.** Viewport origin = `screenX + (outerWidth−innerWidth)/2`, `screenY + (outerHeight−innerHeight−border)`. Chrome's screen coordinates are the same DIP space as Electron's `screen` (mixed DPI included), so `screen.dipToScreenPoint()` gives physical pixels. The real cursor lands **≤1 CSS px** from the element centre on both monitors. The exact origin is also available from any mousemove (`screenX − clientX`).
+
+**Surprises**
+
+- The airlines block silently and get worse with repeat visits, and IndiGo seems to remember the profile. An agent sees a "loaded" page with an empty widget, so we need an "expected element never appeared" check, not just a CAPTCHA check.
+- `Browser.setWindowBounds` sizes come out ×1.5 on the 150% monitor and ÷1.5 on the 100% one, so the units look tied to the wrong monitor's DPI. Don't place windows through CDP. Unresolved.
+- Playwright's defaults show Chrome's "unsupported command-line flag: --no-sandbox" bar.
+- Spike bug: the target picker matched elements outside the viewport (3/8 null rows). The real tools must check the box lies inside the viewport, and scroll into view first.
+- Screenshots catch the overlay mid show-animation (about 2% zoom, 16px off). Keep the overlay shown and move only the dot.
+- Air India's a11y bug: its destination field is labelled "Select origin airport". It also auto-advances From → To → calendar.
+
+**Decision needed (for the grill)**
+
+- D2 flight hero: Google Flights works for search and compare. Booking on IndiGo / Air India through Playwright is blocked. Options: (a) Look/compare on Google Flights, then hand off to the airline in the user's own browser for booking; (b) drive a normally launched Chrome via `connectOverCDP` instead of Playwright's launch (untested; it changes the detection surface, so check the sites' terms first); (c) a different booking site. YouTube (the first Act demo, D1) is fine as is.
