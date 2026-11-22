@@ -60,7 +60,7 @@ External MCP clients (Claude Code, Cursor, Gemini CLI) can use the same server.
 | D17 | Secrets: `.gitignore` first, gitleaks pre-commit hook, GitHub secret scanning + push protection, API key stored with Electron `safeStorage` (DPAPI) via settings box, env var override for dev. Only `*.example` files in repo.                                                                                                               |
 | D18 | Code split: user writes learning parts (raw loop, safety tiers, placeholders, memory, evals) from skeleton + test + hints; Claude writes plumbing and explains. TS taught via Java analogies.                                                                                                                                                 |
 | D19 | Inspiration: [Roamies](https://github.com/KenKaiii/Roamies) — **AGPL-3.0, read for ideas only, copy no code.**                                                                                                                                                                                                                                |
-| D20 | Shell: **Electron now; Tauri (+ Node sidecar) later only if RAM hurts.** Kept cheap because `mcp-server` and `agent` have no Electron dependency — a switch rewrites only `apps/desktop`. |
+| D20 | Shell: **Electron now; Tauri (+ Node sidecar) later only if RAM hurts.** Kept cheap because `mcp-server` and `agent` have no Electron dependency — a switch rewrites only `apps/desktop`.                                                                                                                                                     |
 
 ## Phases
 

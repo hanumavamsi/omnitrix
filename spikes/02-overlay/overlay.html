@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>overlay</title>
+<style>
+	html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+	.t { position: fixed; width: 24px; height: 24px; border: 0 solid #00ff66; }
+	.tl { left: 8px; top: 8px; border-left-width: 2px; border-top-width: 2px; }
+	.tr { right: 8px; top: 8px; border-right-width: 2px; border-top-width: 2px; }
+	.bl { left: 8px; bottom: 8px; border-left-width: 2px; border-bottom-width: 2px; }
+	.br { right: 8px; bottom: 8px; border-right-width: 2px; border-bottom-width: 2px; }
+	pre {
+		position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); margin: 0;
+		padding: 16px 20px; background: rgba(4, 6, 5, 0.85); color: #dfe8e3;
+		font: 13px/1.6 "JetBrains Mono", Consolas, monospace; border-left: 2px solid #00ff66;
+	}
+</style>
+</head>
+<body>
+<div class="t tl"></div><div class="t tr"></div><div class="t bl"></div><div class="t br"></div>
+<pre id="info"></pre>
+<script>
+	const i = JSON.parse(new URLSearchParams(location.search).get("info"));
+	document.getElementById("info").textContent =
+		`OVERLAY · display ${i.id} · scale ${i.scale}\n` +
+		`want ${JSON.stringify(i.want)}\n` +
+		`got  ${JSON.stringify(i.got)}\n` +
+		`css  ${innerWidth}x${innerHeight} @ dpr ${devicePixelRatio}\n\n` +
+		`corner ticks should sit exactly in the screen corners\n` +
+		`clicks pass through · Esc hides · Ctrl+Alt+Esc quits`;
+</script>
+</body>
+</html>
