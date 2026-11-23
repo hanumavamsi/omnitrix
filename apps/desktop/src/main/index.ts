@@ -2,12 +2,15 @@
 import {
 	type Capture,
 	createModelResolver,
+	LookError,
+	type LookErrorKind,
 	look,
 	type ModelMessage,
 } from "@omnitrix/agent";
-import { app, type Display, globalShortcut } from "electron";
+import { app, type Display, globalShortcut, ipcMain } from "electron";
 import type { Area } from "../preload/index.ts";
 import { captureRegion } from "./capture.ts";
+import { openConsole, setupConsole } from "./console.ts";
 import {
 	closeHud,
 	isHudFocused,
@@ -17,16 +20,29 @@ import {
 	setupHud,
 	showAnswer,
 } from "./hud.ts";
+import { getApiKey } from "./keys.ts";
 import { grabSelection } from "./selection.ts";
-import { loadApiKey, loadSettings } from "./settings.ts";
-
-const settings = loadSettings();
-const apiKey = loadApiKey();
-const getModel = apiKey ? createModelResolver(apiKey) : undefined;
+import { getSettings } from "./settings.ts";
 
 let inFlight: AbortController | null = null;
 // The open conversation: kept for follow-ups until the panel closes or the hotkey is pressed again.
 let session: { capture: Capture; conversation: ModelMessage[] } | null = null;
+let lastFollowUp: string | undefined; // with the session, what Retry asks again
+
+// Short, plain HUD text per failure; never the provider's raw message or JSON.
+const errorMessages: Record<LookErrorKind, { text: string; retry: boolean }> = {
+	busy: { text: "Gemini busy, retry", retry: true },
+	"rate-limit": {
+		text: "Too many requests, wait a moment and retry",
+		retry: true,
+	},
+	"daily-limit": { text: "Daily free limit reached", retry: false }, // the fallback was tried already
+	"bad-key": { text: "Bad API key, open Console", retry: false },
+	blocked: { text: "Gemini blocked this content", retry: false },
+	network: { text: "No connection to Gemini, retry", retry: true },
+	aborted: { text: "Cancelled", retry: true },
+	other: { text: "Something went wrong, retry", retry: true },
+};
 
 /** Aborts the old request (a stale answer must never overwrite a new one) and starts a new one. */
 function newRequest() {
@@ -57,7 +73,11 @@ async function onRegion(display: Display, rect: Area, question: string) {
 		png = await captureRegion(display, rect);
 	} catch (error) {
 		showAnswer(rect);
-		return sendToHud({ type: "error", text: `Capture failed: ${error}` });
+		return sendToHud({
+			type: "error",
+			text: `Capture failed: ${error}`,
+			retry: false,
+		});
 	}
 	if (signal.aborted) return;
 	showAnswer(rect);
@@ -74,20 +94,27 @@ async function onFollowUp(text: string) {
 async function answer(signal: AbortSignal, followUp?: string) {
 	const current = session;
 	if (!current) return;
-	if (!getModel)
+	lastFollowUp = followUp;
+	// Read now, not at startup: the Console may have changed the key or settings since.
+	const apiKey = getApiKey("google");
+	if (!apiKey)
 		return sendToHud({
 			type: "notice",
-			text: "No API key: set GEMINI_API_KEY in .env",
+			text: "Add API key in Console",
+			openConsole: true,
 		});
 
 	try {
-		const { textStream } = look({
+		const { textStream, redactedCount } = look({
 			...current,
 			followUp,
-			settings,
-			getModel,
+			settings: getSettings(),
+			getModel: createModelResolver(apiKey),
 			signal,
+			onFallback: () => sendToHud({ type: "fallback" }),
 		});
+		if (redactedCount > 0)
+			sendToHud({ type: "redacted", count: redactedCount });
 		let full = "";
 		for await (const chunk of textStream) {
 			if (signal.aborted) return; // drop late chunks
@@ -100,12 +127,14 @@ async function answer(signal: AbortSignal, followUp?: string) {
 		current.conversation.push({ role: "assistant", content: full });
 		sendToHud({ type: "done" });
 	} catch (error) {
-		// shortcut: raw message for now; #5 maps errors to short plain text.
-		if (!signal.aborted)
-			sendToHud({
-				type: "error",
-				text: error instanceof Error ? error.message : String(error),
-			});
+		if (signal.aborted) return;
+		console.error("Look failed:", error); // the full error stays in the terminal for debugging
+		const kind = error instanceof LookError ? error.kind : "other";
+		sendToHud({
+			type: "error",
+			...errorMessages[kind],
+			openConsole: kind === "bad-key",
+		});
 	}
 }
 
@@ -113,8 +142,7 @@ const logError = (error: unknown) => console.error("Look failed:", error);
 
 app.whenReady().then(() => {
 	setupHud({
-		recordable: settings.recordable,
-		panelPosition: settings.panelPosition,
+		recordable: getSettings().recordable,
 		onClosed: () => {
 			inFlight?.abort();
 			session = null;
@@ -123,13 +151,20 @@ app.whenReady().then(() => {
 			onRegion(display, rect, question).catch(logError),
 		onFollowUp: (text) => onFollowUp(text).catch(logError),
 	});
+	setupConsole();
+	const hasKey = Boolean(getApiKey("google"));
+	if (!hasKey) openConsole(); // first run (L12): ask for the key straight away
+	// Re-asks the last question of the open session: the same capture (text or region) and follow-up.
+	ipcMain.on("hud:retry", () =>
+		answer(newRequest(), lastFollowUp).catch(logError),
+	);
 	const hotkey = () => onHotkey().catch(logError);
 	if (!globalShortcut.register("Control+Shift+Space", hotkey))
 		console.error("Ctrl+Shift+Space is taken by another app");
 	globalShortcut.register("Control+Alt+Escape", () => app.quit()); // kill switch
 	console.log(
-		`Omnitrix ready (${settings.lookModel}${apiKey ? "" : ", no API key"}): press Ctrl+Shift+Space`,
+		`Omnitrix ready (${getSettings().lookModel}${hasKey ? "" : ", no API key"}): press Ctrl+Shift+Space`,
 	);
 });
 app.on("will-quit", () => globalShortcut.unregisterAll());
-app.on("window-all-closed", () => {});
+app.on("window-all-closed", () => {}); // keep running in the tray with the Console closed and every HUD hidden

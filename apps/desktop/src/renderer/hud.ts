@@ -22,6 +22,9 @@ const panel = document.getElementById("panel") as HTMLElement;
 const transcript = document.getElementById("transcript") as HTMLElement;
 const followUp = document.getElementById("follow-up") as HTMLInputElement;
 const closeButton = document.getElementById("close") as HTMLButtonElement;
+const retryButton = document.getElementById("retry") as HTMLButtonElement;
+const fallbackTag = document.getElementById("fallback-tag") as HTMLElement;
+const redacted = document.getElementById("redacted") as HTMLElement;
 
 marked.use(markedKatex({ throwOnError: false }));
 
@@ -35,11 +38,33 @@ function renderMarkdown(text: string) {
 let answer = document.createElement("div"); // the answer streaming in now
 let answerText = "";
 
+/** Empties the current answer for a new attempt; main sends the redacted count and fallback tag again. */
+function resetAnswer() {
+	answer.className = "answer waiting";
+	answer.textContent = "";
+	answerText = "";
+	retryButton.hidden = true;
+	fallbackTag.hidden = true;
+	redacted.hidden = true;
+}
+
 function startAnswer() {
 	answer = document.createElement("div");
-	answer.className = "answer waiting";
-	answerText = "";
 	transcript.append(answer);
+	resetAnswer();
+}
+
+/** Plain text in the current answer, plus an "Open Console" button when main asks for one. */
+function showText(className: string, text: string, openConsole?: boolean) {
+	answer.className = className;
+	answer.textContent = text;
+	if (!openConsole) return;
+	const button = document.createElement("button");
+	button.type = "button";
+	button.className = "action";
+	button.textContent = "Open Console";
+	button.addEventListener("click", () => window.omni.openConsole());
+	answer.append(button);
 }
 
 function setPanel(
@@ -66,27 +91,25 @@ function place(target: Area, area: Area, position: "cursor" | "fixed") {
 
 	const clampLeft = (x: number) =>
 		Math.max(area.x + MARGIN, Math.min(x, right));
-	const boxBottom = target.y + target.height;
+	// The cursor or box can reach onto the taskbar, outside the work area.
+	const clampY = (y: number) => Math.min(Math.max(y, area.y), bottom);
+	const boxTop = clampY(target.y);
+	const boxBottom = clampY(target.y + target.height);
 	const roomBelow = bottom - boxBottom - GAP - MARGIN;
-	const roomAbove = target.y - area.y - GAP - MARGIN;
+	const roomAbove = boxTop - area.y - GAP - MARGIN;
 	if (Math.max(roomBelow, roomAbove) < MIN_ROOM) {
-		const top = Math.max(target.y, area.y) + MARGIN;
+		const top = boxTop + MARGIN;
 		return setPanel(
 			clampLeft(target.x + MARGIN),
 			top,
 			null,
-			Math.min(boxBottom, bottom) - top - MARGIN,
+			boxBottom - top - MARGIN,
 		);
 	}
 	if (roomBelow >= roomAbove)
 		setPanel(clampLeft(target.x), boxBottom + GAP, null, roomBelow);
 	else
-		setPanel(
-			clampLeft(target.x),
-			null,
-			innerHeight - target.y + GAP,
-			roomAbove,
-		);
+		setPanel(clampLeft(target.x), null, innerHeight - boxTop + GAP, roomAbove);
 }
 
 followUp.addEventListener("keydown", (event) => {
@@ -198,12 +221,18 @@ window.omni.onMessage((message: HudMessage) => {
 			answer.innerHTML = renderMarkdown(answerText);
 			break;
 		case "notice":
-			answer.className = "answer";
-			answer.textContent = message.text;
+			showText("answer", message.text, message.openConsole);
 			break;
 		case "error":
-			answer.className = "answer error";
-			answer.textContent = message.text;
+			showText("answer error", message.text, message.openConsole);
+			retryButton.hidden = !message.retry;
+			break;
+		case "redacted":
+			redacted.textContent = `${message.count} secret${message.count === 1 ? "" : "s"} redacted`;
+			redacted.hidden = false;
+			break;
+		case "fallback":
+			fallbackTag.hidden = false;
 			break;
 		case "done":
 			answer.className = "answer";
@@ -212,6 +241,10 @@ window.omni.onMessage((message: HudMessage) => {
 });
 
 closeButton.addEventListener("click", () => window.omni.close());
+retryButton.addEventListener("click", () => {
+	resetAnswer(); // the retried answer replaces the failed one
+	window.omni.retry();
+});
 addEventListener(
 	"keydown",
 	(event) => event.key === "Escape" && window.omni.close(),

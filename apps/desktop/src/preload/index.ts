@@ -17,14 +17,18 @@ export type HudMessage =
 			position: "cursor" | "fixed";
 	  }
 	| { type: "chunk"; text: string }
-	| { type: "notice"; text: string }
-	| { type: "error"; text: string }
+	| { type: "notice"; text: string; openConsole?: boolean } // openConsole: add an "Open Console" button
+	| { type: "redacted"; count: number }
+	| { type: "error"; text: string; retry: boolean; openConsole?: boolean }
+	| { type: "fallback" } // the fallback model is answering
 	| { type: "done" };
 
 const api = {
 	onMessage: (handler: (message: HudMessage) => void) =>
 		ipcRenderer.on("hud", (_event, message: HudMessage) => handler(message)),
 	close: () => ipcRenderer.send("hud:close"),
+	openConsole: () => ipcRenderer.send("hud:open-console"),
+	retry: () => ipcRenderer.send("hud:retry"),
 	pointerOverPanel: (over: boolean) =>
 		ipcRenderer.send("hud:pointer-over-panel", over),
 	/** The user dragged rect (question may be empty). The dim layer must already be off screen. */

@@ -8,6 +8,7 @@ import {
 	screen,
 } from "electron";
 import type { Area, HudMessage } from "../preload/index.ts";
+import { getSettings } from "./settings.ts";
 import {
 	GetForegroundWindow,
 	GetWindowThreadProcessId,
@@ -23,7 +24,6 @@ let options: HudOptions;
 
 type HudOptions = {
 	recordable: boolean;
-	panelPosition: "cursor" | "fixed";
 	onClosed: () => void;
 	onRegion: (display: Display, rect: Area, question: string) => void;
 	onFollowUp: (text: string) => void;
@@ -78,7 +78,7 @@ export function setupHud(hudOptions: HudOptions) {
 	screen.on("display-added", rebuildHuds);
 	screen.on("display-removed", rebuildHuds);
 	screen.on("display-metrics-changed", rebuildHuds);
-	ipcMain.on("hud:close", closeHud);
+	ipcMain.on("hud:close", () => closeHud());
 	ipcMain.on("hud:pointer-over-panel", (event, over: boolean) => {
 		BrowserWindow.fromWebContents(event.sender)?.setIgnoreMouseEvents(!over, {
 			forward: true,
@@ -91,6 +91,12 @@ export function setupHud(hudOptions: HudOptions) {
 	ipcMain.on("hud:follow-up", (_event, text: string) =>
 		options.onFollowUp(text),
 	);
+}
+
+/** Recordable on: screen capture (OBS, Game Bar, test screenshots) sees the HUD (D13). */
+export function setRecordable(on: boolean) {
+	options.recordable = on;
+	for (const win of huds.values()) win.setContentProtection(!on);
 }
 
 /** Call before grabbing the selection, while the user's app is still in front. */
@@ -141,7 +147,7 @@ export function showAnswer(box: Area) {
 		type: "answer",
 		box,
 		area: { ...workArea, x: workArea.x - bounds.x, y: workArea.y - bounds.y },
-		position: options.panelPosition,
+		position: getSettings().panelPosition, // read now: the Console can change it
 	});
 	shown.setIgnoreMouseEvents(true, { forward: true }); // click-through again; the pointer may not be over the panel
 }
@@ -150,7 +156,9 @@ export function sendToHud(message: HudMessage) {
 	if (shown && !shown.isDestroyed()) shown.webContents.send("hud", message);
 }
 
-export function closeHud() {
+/** returnFocus false: another Omnitrix window (the Console) takes focus instead of the user's app. */
+export function closeHud({ returnFocus = true } = {}) {
+	if (!returnFocus) returnFocusTo = null;
 	// Hiding a focused window doesn't hand focus back on Windows. IsWindow: that app may have closed meanwhile.
 	const target =
 		returnFocusTo && IsWindow(returnFocusTo) ? returnFocusTo : null;
