@@ -1,7 +1,7 @@
 # Omnitrix — Plan
 
 Codename `omnitrix` (Ben 10 trademark → pick public name before wide release, see D15).
-Status: grilled and agreed 2026-11-22; re-grilled after spikes 1–5 on 2026-11-23 (D2, D4, D6, D13, D14). All 6 spikes finish before P1. Later phases get their own short grill when we reach them.
+Status: grilled and agreed 2026-11-22; re-grilled after spikes 1–5 on 2026-11-23 (D2, D4, D6, D13, D14); P1 grilled 2026-11-23 (L1–L15). All 6 spikes finish before P1. Later phases get their own short grill when we reach them.
 
 ## Goals (ranked)
 
@@ -26,11 +26,11 @@ Ctrl+Shift+Space
 apps/desktop (Electron)
    ├─ HUD: one overlay window per monitor, only the agent's monitor visible
    ├─ input screen: selection → explain | dim + type command / drag region
-   ├─ hosts ─► packages/agent  (Vercel AI SDK loop, any model, default Gemini Flash)
+   ├─ Console window (tray): settings + history
+   ├─ hosts ─► packages/agent  (Vercel AI SDK; look() = streaming call, no tools; Act loop in P2)
    │                │ MCP client
    │                ▼
    └─ hosts ─► packages/mcp-server  (Streamable HTTP on 127.0.0.1, bearer token, Origin check, one-task lock)
-                    ├─ look tools: look_selection, look_region
                     ├─ browser tools: Playwright connectOverCDP to self-launched Chrome (dedicated profile), ariaSnapshot
                     ├─ safety tiers (enforced here, for every client)
                     └─ {{profile.*}} placeholder substitution
@@ -67,7 +67,7 @@ External MCP clients (Claude Code, Cursor, Gemini CLI) can use the same server.
 | Phase                 | Deliverable                                                                                                                            |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **P0 Spikes**         | 6 throwaway scripts in `spikes/`, findings in `docs/spikes.md` (below).                                                                |
-| **P1 Look**           | Hotkey → explain selection / dragged region in HUD panel, follow-ups. MCP look tools. JSONL traces.                                    |
+| **P1 Look**           | Hotkey → explain selection / dragged region in HUD panel, follow-ups. Console (settings + history). JSONL traces. Showcase 1. See L1–L15. |
 | **P2 Act**            | Browser tools + ghost cursor + safety tiers. "Open my YouTube, play last watched video", then flight hero to payment stop.             |
 | P3 Voice              | Push-to-talk → VAD → STT → agent → streaming TTS, barge-in. Spike: Whisper vs **NVIDIA Parakeet TDT 0.6B ONNX**.                       |
 | P4 Draw mode          | HUD captures pen input, "what animal is this?".                                                                                        |
@@ -75,6 +75,26 @@ External MCP clients (Claude Code, Cursor, Gemini CLI) can use the same server.
 | P6 Evals              | Offline replay of recorded tasks, online success/correction logging.                                                                   |
 | P7 Desktop automation | Windows UI Automation backend; **Windows built-in OCR** for cheap text grounding; WhatsApp share.                                      |
 | P8 Extras             | Wake word, full-screen diagrams, RAM/CPU + token watchdog, OpenTelemetry/Langfuse.                                                     |
+
+## P1 Look decisions (grilled 2026-11-23)
+
+| #   | Decision |
+| --- | -------- |
+| L1  | In-app Look passes the capture (text or region PNG) straight into the first model message. |
+| L2  | **No look tools on the MCP server.** MCP is the Act surface for external clients. P1 doesn't touch `packages/mcp-server`, and Look has no tools. |
+| L3  | `packages/agent` exports a streaming `look(conversation)`. Desktop main pipes the chunks to the HUD over IPC. |
+| L4  | Traces: metadata (model, tokens, latency, capture type/size, errors) always. Content (text, PNG, prompts, answers) only behind a setting, off by default and on in dev/test builds. Kept 14 days. |
+| L5  | **Secret redaction** on text before the model call, the trace and the history: regex for key shapes (`AIza…`, `sk-…`, `ghp_…`), JWTs, `PASSWORD=` lines, long high-entropy strings → `[redacted secret]`. The HUD shows "N secrets redacted". Images aren't covered (README). The user writes it (D18). |
+| L6  | Setting `panelPosition: cursor \| fixed` (fixed = right edge of the monitor), default `cursor`. Cursor = spike-4 placement with a zero-size box at the mouse. |
+| L7  | **Console**: the Omnitrix app window, opened from the tray. In P1 it holds settings (API keys, models, fallbacks, panel position, traces, Recordable) and history. Later: an MCP tab (token + Claude Code snippet), a live task view, memory. Closing it keeps the app in the tray. |
+| L8  | History is separate from traces and on by default (`saveHistory`), kept 14 days, deletable one at a time or all at once, redacted, with region thumbnails only. Read-only with "Copy answer". Resume waits for P5. |
+| L9  | Region question: if text is already in the command box when the drag starts, use it. Otherwise an input appears by the box after mouse-up. An empty Enter gives the default explain. |
+| L10 | Errors: one retry (AI SDK `maxRetries`), then the fallback model, then a short HUD message + Retry button (busy, daily limit, bad key → open Console). No fallback on a bad key or blocked content. A new hotkey press aborts the in-flight request (`AbortController`). |
+| L11 | `lookFallbackModel` / `actFallbackModel` (D4 format). The defaults swap with each other: Look falls back to Flash, Act to Flash Lite. The HUD tags answers from the fallback. Act fallback is built in P2. |
+| L12 | First run opens the Console with the API key field, a warning that free-tier Gemini may train on what you send, and a get-key link. Pressing the hotkey without a key → "Add API key in Console". |
+| L13 | Default answers are short (2–4 sentences) and tuned to the content type (code, term, math, table/chart → key numbers, foreign text → translation). Follow-ups give depth. The user writes the system prompt from a skeleton + fixture captures. |
+| L14 | The panel stays until ✕, Esc or the next hotkey. Esc is global only until the user clicks into another app. |
+| L15 | P1 is done when the features work and tests pass, **and** Showcase 1 is shipped: a recorded demo (Recordable on) + `docs/showcases/01-look.md`. |
 
 ## P0 spikes
 
