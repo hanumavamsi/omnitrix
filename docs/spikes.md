@@ -164,3 +164,27 @@ The app starts Chrome itself with only `--remote-debugging-port=9333 --user-data
 - Tested once per site from this IP. Repeated visits are untested.
 - Air India's desktop layout (larger window) uses dropdown `option`s where the narrow layout uses modal buttons, so the agent can't rely on one fixed layout.
 - **Snapshot size on results pages**: IndiGo is 187k chars, 2,822 refs (about 47k tokens); Air India is 68k chars; Google Flights is 64k chars. These are much bigger than first measured, so scoping is mandatory.
+
+## 6. MCP server over local HTTP + token (2026-11-23) — done
+
+Code: `spikes/06-mcp/server.js` (plain Node, `@modelcontextprotocol/sdk@1.32.2`, stateless Streamable HTTP with `enableJsonResponse`, zod tool schemas). Tested by the automated sub-agent with curl and headless Claude Code 2.1.322 (`claude -p ... --mcp-config <file> --strict-mcp-config`, no persistent config changed).
+
+| Check | Result |
+| --- | --- |
+| No token / wrong token / token without `Bearer ` | 401 |
+| Any `Origin` header (incl. `null`) | 403 |
+| `Host: evil.example` (DNS rebinding) | 403 |
+| Wrong path | 404 |
+| Bind | `127.0.0.1` only (`[::1]` refused) |
+| Claude Code calls `ping` | **PASS**: discover → initialize → tools/list → tools/call (6 ms) |
+| Two `slow_task(5)` at once | one `done after 5s`, other `busy` (`isError`) in 5 ms; lock frees after |
+| Out-of-range arg | zod rejects as a tool error the model sees (`-32602 ... <=30`) |
+| Stateless `tools/list` | works without `initialize` |
+
+**Surprises**
+
+- Claude Code first sends `server/discover` with protocol `2026-07-28`; SDK 1.32.2 answers 400, Claude Code falls back to `initialize` (`2025-11-25`). Harmless, one extra round trip and a 400 in every log. Recheck on SDK upgrade.
+- `GET /mcp` (the server→client event stream) is accepted in stateless mode and held open until the client exits, though it can never carry anything; each holds a server+transport pair. P2: answer GET with 405.
+- A client that disconnects does not cancel its task: the lock stays held until the task ends. P2 tools need an `AbortSignal` wired to request close, so the kill switch and client aborts actually stop work.
+- Aborted requests never reach the final log line (`handleRequest` doesn't settle after close). P2 traces must log on `res.close`, not after `await`.
+- `claude -p` waits 3 s for stdin unless given `< /dev/null`.
