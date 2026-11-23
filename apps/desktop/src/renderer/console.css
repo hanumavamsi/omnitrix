@@ -171,3 +171,57 @@ code {
 #status.error {
 	color: var(--red);
 }
+
+#history-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.entry {
+	padding: 12px;
+	margin-bottom: 8px;
+	background: var(--panel);
+	border: 1px solid rgba(0, 255, 102, 0.35);
+}
+
+.entry p {
+	margin: 8px 0 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.entry .capture,
+.entry .user {
+	color: var(--muted);
+}
+
+.entry .capture {
+	max-height: 6em;
+	overflow: auto;
+}
+
+.entry img {
+	display: block;
+	max-width: 160px;
+	margin-top: 8px;
+	border: 1px solid rgba(0, 255, 102, 0.35);
+}
+
+.meta,
+.grow {
+	flex: 1;
+}
+
+.meta {
+	color: var(--muted);
+}
+
+#history-status {
+	min-height: 1.5em;
+	color: var(--green);
+}
+
+#history-status.error {
+	color: var(--red);
+}

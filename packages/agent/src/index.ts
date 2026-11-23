@@ -10,4 +10,5 @@ export {
 	look,
 } from "./look.ts";
 export { createModelResolver } from "./models.ts";
+export { REDACTED, redact } from "./redact.ts";
 export { defaultSettings, parseSettings, type Settings } from "./settings.ts";
