@@ -1,6 +1,4 @@
 import DOMPurify from "dompurify";
-import { marked } from "marked";
-import markedKatex from "marked-katex-extension";
 import type { Area, HudMessage, OmniApi } from "../preload/index.ts";
 import {
 	type HudEvent,
@@ -9,6 +7,7 @@ import {
 	nextState,
 	type Turn,
 } from "./hudState.ts";
+import { markdownToHtml } from "./markdown.ts";
 import { placePanel, placeQuestion } from "./placement.ts";
 
 declare global {
@@ -29,11 +28,9 @@ const retryButton = document.getElementById("retry") as HTMLButtonElement;
 const fallbackTag = document.getElementById("fallback-tag") as HTMLElement;
 const redacted = document.getElementById("redacted") as HTMLElement;
 
-marked.use(markedKatex({ throwOnError: false }));
-
 // Model output is untrusted, so the HTML is always sanitized before it reaches the page.
 function renderMarkdown(text: string) {
-	return DOMPurify.sanitize(marked.parse(text, { async: false }));
+	return DOMPurify.sanitize(markdownToHtml(text));
 }
 
 let state: HudState = initialState;
