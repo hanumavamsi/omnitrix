@@ -192,6 +192,22 @@ describe("look", () => {
 		expect(await collect(textStream)).toEqual(["It ", "declares ", "x."]);
 	});
 
+	it("reports the token counts for the trace", async () => {
+		let reported: unknown;
+		const { textStream } = look({
+			capture: { kind: "text", text: "x" },
+			conversation: [],
+			settings: defaultSettings,
+			getModel: () => streamingModel(["ok"]),
+			signal: new AbortController().signal,
+			onUsage: (usage) => {
+				reported = usage;
+			},
+		});
+		await collect(textStream);
+		expect(reported).toMatchObject({ inputTokens: 5, outputTokens: 3 });
+	});
+
 	it("stops streaming when aborted", async () => {
 		const controller = new AbortController();
 		const words = Array.from({ length: 20 }, (_, i) => `w${i} `);

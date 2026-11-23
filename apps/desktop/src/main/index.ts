@@ -1,16 +1,26 @@
 // Omnitrix main process: Ctrl+Shift+Space explains the selected text, or a dragged screen region, in the HUD.
 import {
-	type Capture,
 	createModelResolver,
 	LookError,
 	type LookErrorKind,
 	look,
-	type ModelMessage,
 } from "@omnitrix/agent";
-import { app, type Display, globalShortcut, ipcMain } from "electron";
+import {
+	app,
+	type Display,
+	globalShortcut,
+	ipcMain,
+	nativeImage,
+} from "electron";
 import type { Area } from "../preload/index.ts";
 import { captureRegion } from "./capture.ts";
 import { openConsole, setupConsole } from "./console.ts";
+import {
+	type AnswerInfo,
+	type LookSession,
+	prune,
+	recordLook,
+} from "./history.ts";
 import {
 	closeHud,
 	isHudFocused,
@@ -22,11 +32,11 @@ import {
 } from "./hud.ts";
 import { getApiKey } from "./keys.ts";
 import { grabSelection } from "./selection.ts";
-import { getSettings } from "./settings.ts";
+import { dataDir, getSettings } from "./settings.ts";
 
 let inFlight: AbortController | null = null;
 // The open conversation: kept for follow-ups until the panel closes or the hotkey is pressed again.
-let session: { capture: Capture; conversation: ModelMessage[] } | null = null;
+let session: LookSession | null = null;
 let lastFollowUp: string | undefined; // with the session, what Retry asks again
 
 // Short, plain HUD text per failure; never the provider's raw message or JSON.
@@ -62,7 +72,7 @@ async function onHotkey() {
 
 	if (!text) return openHud("region");
 	openHud("answer");
-	session = { capture: { kind: "text", text }, conversation: [] };
+	session = newSession({ kind: "text", text });
 	await answer(signal);
 }
 
@@ -81,9 +91,20 @@ async function onRegion(display: Display, rect: Area, question: string) {
 	}
 	if (signal.aborted) return;
 	showAnswer(rect);
-	session = { capture: { kind: "region", png, question }, conversation: [] };
+	session = newSession({ kind: "region", png, question });
+	// History keeps only this small preview, never the full capture (L8).
+	const thumb = nativeImage.createFromBuffer(png).resize({ width: 160 });
+	session.thumbnail = `data:image/jpeg;base64,${thumb.toJPEG(70).toString("base64")}`;
 	await answer(signal);
 }
+
+const newSession = (capture: LookSession["capture"]): LookSession => ({
+	id: Date.now(),
+	capture,
+	conversation: [],
+	model: getSettings().lookModel,
+	fallback: false,
+});
 
 async function onFollowUp(text: string) {
 	if (!session) return;
@@ -91,7 +112,7 @@ async function onFollowUp(text: string) {
 }
 
 /** Streams one answer of the open session into the HUD and records the turn once it completes. */
-async function answer(signal: AbortSignal, followUp?: string) {
+async function answer(signal: AbortSignal, followUp?: string, retry = false) {
 	const current = session;
 	if (!current) return;
 	lastFollowUp = followUp;
@@ -104,32 +125,64 @@ async function answer(signal: AbortSignal, followUp?: string) {
 			openConsole: true,
 		});
 
+	const settings = getSettings();
+	const info: AnswerInfo = {
+		startedAt: Date.now(),
+		endedAt: 0,
+		model: settings.lookModel,
+		fallback: false,
+		retry,
+		followUp,
+	};
+	// Every outcome gets a trace; history only gets finished answers (recordLook checks).
+	const finish = (error?: LookErrorKind) => {
+		info.endedAt = Date.now();
+		info.error = error;
+		try {
+			recordLook(dataDir, getSettings(), current, info);
+		} catch (e) {
+			console.error("Saving history/trace failed:", e);
+		}
+	};
+
 	try {
 		const { textStream, redactedCount } = look({
 			...current,
 			followUp,
-			settings: getSettings(),
+			settings,
 			getModel: createModelResolver(apiKey),
 			signal,
-			onFallback: () => sendToHud({ type: "fallback" }),
+			onFallback: () => {
+				info.model = settings.lookFallbackModel;
+				info.fallback = true;
+				sendToHud({ type: "fallback" });
+			},
+			onUsage: (usage) => {
+				info.usage = usage;
+			},
 		});
 		if (redactedCount > 0)
 			sendToHud({ type: "redacted", count: redactedCount });
 		let full = "";
 		for await (const chunk of textStream) {
-			if (signal.aborted) return; // drop late chunks
+			if (signal.aborted) return finish("aborted"); // drop late chunks
 			full += chunk;
 			sendToHud({ type: "chunk", text: chunk });
 		}
-		if (signal.aborted) return;
+		if (signal.aborted) return finish("aborted");
 		if (followUp)
 			current.conversation.push({ role: "user", content: followUp });
 		current.conversation.push({ role: "assistant", content: full });
+		current.model = info.model;
+		current.fallback ||= info.fallback;
+		info.answer = full;
+		finish();
 		sendToHud({ type: "done" });
 	} catch (error) {
-		if (signal.aborted) return;
-		console.error("Look failed:", error); // the full error stays in the terminal for debugging
 		const kind = error instanceof LookError ? error.kind : "other";
+		if (signal.aborted) return finish("aborted");
+		finish(kind);
+		console.error("Look failed:", error); // the full error stays in the terminal for debugging
 		sendToHud({
 			type: "error",
 			...errorMessages[kind],
@@ -156,8 +209,9 @@ app.whenReady().then(() => {
 	if (!hasKey) openConsole(); // first run (L12): ask for the key straight away
 	// Re-asks the last question of the open session: the same capture (text or region) and follow-up.
 	ipcMain.on("hud:retry", () =>
-		answer(newRequest(), lastFollowUp).catch(logError),
+		answer(newRequest(), lastFollowUp, true).catch(logError),
 	);
+	prune(dataDir, Date.now()); // the app lives in the tray for days, so recordLook prunes too
 	const hotkey = () => onHotkey().catch(logError);
 	if (!globalShortcut.register("Control+Shift+Space", hotkey))
 		console.error("Ctrl+Shift+Space is taken by another app");

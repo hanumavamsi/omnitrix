@@ -33,6 +33,8 @@ export type LookRequest = {
 	signal: AbortSignal;
 	/** Called when the main model failed and the fallback model takes over; tag the answer. */
 	onFallback?: () => void;
+	/** Called with the token counts when a model finishes its answer (for the trace). */
+	onUsage?: (usage: { inputTokens?: number; outputTokens?: number }) => void;
 };
 
 export type LookResult = {
@@ -150,7 +152,7 @@ function answer(
 		maxRetries: 1,
 		onError: () => {}, // textOf rethrows the error; the SDK's default would also log the raw provider body
 	});
-	return textOf(result.stream);
+	return textOf(result.stream, request.onUsage);
 }
 
 // The SDK's own textStream swallows errors; this one rethrows them so the HUD can show them.
@@ -160,7 +162,9 @@ async function* textOf(
 		text?: string;
 		error?: unknown;
 		finishReason?: string;
+		totalUsage?: { inputTokens?: number; outputTokens?: number };
 	}>,
+	onUsage: LookRequest["onUsage"],
 ) {
 	for await (const part of parts) {
 		if (part.type === "text-delta" && part.text) yield part.text;
@@ -168,6 +172,8 @@ async function* textOf(
 		// Gemini reports blocked content as a normal finish, not as an error.
 		else if (part.type === "finish" && part.finishReason === "content-filter")
 			throw new LookError("blocked");
+		else if (part.type === "finish" && part.totalUsage)
+			onUsage?.(part.totalUsage);
 	}
 }
 

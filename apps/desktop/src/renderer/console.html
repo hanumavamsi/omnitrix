@@ -2,16 +2,16 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
 		<title>Omnitrix Console</title>
 		<link rel="stylesheet" href="./console.css" />
 	</head>
 	<body>
 		<header>
 			<h1>OMNITRIX</h1>
-			<!-- One tab for now; History and others join this bar later. -->
 			<div class="tabs" role="tablist">
 				<button type="button" role="tab" aria-selected="true" aria-controls="settings">Settings</button>
+				<button type="button" role="tab" aria-selected="false" aria-controls="history">History</button>
 			</div>
 		</header>
 		<main>
@@ -41,6 +41,14 @@
 					<label class="check"><input type="checkbox" name="traceContent" /> Include page content in traces</label>
 				</form>
 				<p id="status" role="status"></p>
+			</section>
+			<section id="history" role="tabpanel" hidden>
+				<div class="row">
+					<h2 class="grow">Past Looks (kept 14 days)</h2>
+					<button type="button" id="delete-all">Delete all</button>
+				</div>
+				<ol id="history-list"></ol>
+				<p id="history-status" role="status"></p>
 			</section>
 		</main>
 		<script type="module" src="./console.ts"></script>

@@ -1,4 +1,4 @@
-// The Console (glossary): the app window opened from the tray, for settings now and history later.
+// The Console (glossary): the app window opened from the tray, for settings and Look history.
 import { join } from "node:path";
 import {
 	app,
@@ -11,9 +11,10 @@ import {
 	Tray,
 } from "electron";
 import type { ConsoleState } from "../preload/console.ts";
+import { deleteHistory, listHistory } from "./history.ts";
 import { closeHud, setRecordable } from "./hud.ts";
 import { clearApiKey, providers, providerViews, setApiKey } from "./keys.ts";
-import { getSettings, saveSettings } from "./settings.ts";
+import { dataDir, getSettings, saveSettings } from "./settings.ts";
 
 let win: BrowserWindow | null = null;
 let tray: Tray | null = null; // module-level so it is not garbage collected (the icon would vanish)
@@ -97,6 +98,15 @@ export function setupConsole() {
 		fromConsole(event);
 		clearApiKey(provider);
 		return state();
+	});
+	ipcMain.handle("console:get-history", (event) => {
+		fromConsole(event);
+		return listHistory(dataDir);
+	});
+	ipcMain.handle("console:delete-history", (event, id: unknown) => {
+		fromConsole(event);
+		deleteHistory(dataDir, id);
+		return listHistory(dataDir);
 	});
 	ipcMain.on("console:open-key-page", (event, provider: unknown) => {
 		// The URL is ours, never the page's.
