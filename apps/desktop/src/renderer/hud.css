@@ -59,6 +59,22 @@ body {
 	outline: none;
 }
 
+.action {
+	margin-top: 8px;
+	padding: 4px 10px;
+	border: 1px solid #00ff66;
+	background: transparent;
+	color: #00ff66;
+	font: inherit;
+	cursor: pointer;
+}
+
+.action:hover,
+.action:focus-visible {
+	background: rgba(0, 255, 102, 0.15);
+	outline: none;
+}
+
 #answer.waiting::after {
 	content: "▍";
 	color: #00ff66;

@@ -6,4 +6,4 @@ export {
 	look,
 } from "./look.ts";
 export { createModelResolver } from "./models.ts";
-export { defaultSettings, type Settings } from "./settings.ts";
+export { defaultSettings, parseSettings, type Settings } from "./settings.ts";
