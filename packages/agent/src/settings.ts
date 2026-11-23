@@ -19,7 +19,7 @@ export const defaultSettings: Settings = {
 	panelPosition: "cursor",
 	saveHistory: true,
 	traceContent: false,
-	recordable: false,
+	recordable: true,
 };
 
 const isModelId = (value: unknown) =>
