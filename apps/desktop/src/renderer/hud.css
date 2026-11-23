@@ -227,3 +227,27 @@ input {
 		opacity: 0;
 	}
 }
+
+/* Thin neon scrollbar for every scrolling area (#transcript, .answer pre, wide math). */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	border-radius: 3px;
+	background: rgba(0, 255, 102, 0.35);
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #00ff66;
+}
+
+::-webkit-scrollbar-button {
+	display: none;
+}
