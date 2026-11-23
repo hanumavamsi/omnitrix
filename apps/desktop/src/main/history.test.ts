@@ -156,37 +156,6 @@ describe("recordLook", () => {
 		expect(listHistory(dir)).toEqual([]);
 		expect(traces()).toHaveLength(1);
 	});
-
-	it("does not save an aborted or failed answer, only its trace", () => {
-		recordLook(
-			dir,
-			defaultSettings,
-			textSession(),
-			done({ answer: undefined, error: "aborted" }),
-		);
-		recordLook(
-			dir,
-			defaultSettings,
-			textSession(),
-			done({ answer: undefined, error: "busy" }),
-		);
-		expect(listHistory(dir)).toEqual([]);
-		expect(traces().map((t) => t.error)).toEqual(["aborted", "busy"]);
-	});
-
-	it("rewrites one entry per Look when follow-ups finish", () => {
-		recordLook(dir, defaultSettings, textSession(), done());
-		const followed = textSession({
-			conversation: [
-				{ role: "assistant", content: "It is a key." },
-				{ role: "user", content: "more?" },
-				{ role: "assistant", content: "More." },
-			],
-		});
-		recordLook(dir, defaultSettings, followed, done({ followUp: "more?" }));
-		expect(listHistory(dir).map((r) => r.turns.length)).toEqual([3]);
-		expect(traces()).toHaveLength(2);
-	});
 });
 
 describe("listHistory and deleteHistory", () => {

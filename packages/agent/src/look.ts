@@ -47,7 +47,7 @@ export type LookRequest = {
 };
 
 export type LookResult = {
-	/** Answer text as it streams. Throws a LookError on failure; ends quietly on abort. */
+	/** Answer text as it streams. Throws a LookError on failure, and LookError("aborted") on abort: it never yields after abort and never ends quietly once aborted. */
 	textStream: AsyncIterable<string>;
 	/** How many secrets were replaced with "[redacted secret]" before the model saw the text. */
 	redactedCount: number;
@@ -161,7 +161,7 @@ function answer(
 		maxRetries: 1,
 		onError: () => {}, // textOf rethrows the error; the SDK's default would also log the raw provider body
 	});
-	return textOf(result.stream, request.onUsage);
+	return textOf(result.stream, request);
 }
 
 // The SDK's own textStream swallows errors; this one rethrows them so the HUD can show them.
@@ -173,9 +173,10 @@ async function* textOf(
 		finishReason?: string;
 		totalUsage?: { inputTokens?: number; outputTokens?: number };
 	}>,
-	onUsage: LookRequest["onUsage"],
+	{ onUsage, signal }: LookRequest,
 ) {
 	for await (const part of parts) {
+		if (signal.aborted) break; // a late chunk must never reach the caller
 		if (part.type === "text-delta" && part.text) yield part.text;
 		else if (part.type === "error") throw part.error;
 		// Gemini reports blocked content as a normal finish, not as an error.
@@ -184,6 +185,8 @@ async function* textOf(
 		else if (part.type === "finish" && part.totalUsage)
 			onUsage?.(part.totalUsage);
 	}
+	// The SDK may just end the stream on abort; say so, or a cut answer would look finished.
+	if (signal.aborted) throw new LookError("aborted");
 }
 
 // Sorts any failure into a kind the HUD can explain in a few words. See the #5 commit for the SDK details.

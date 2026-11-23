@@ -208,7 +208,7 @@ describe("look", () => {
 		expect(reported).toMatchObject({ inputTokens: 5, outputTokens: 3 });
 	});
 
-	it("stops streaming when aborted", async () => {
+	it("stops streaming and throws aborted when aborted", async () => {
 		const controller = new AbortController();
 		const words = Array.from({ length: 20 }, (_, i) => `w${i} `);
 		const { textStream } = lookWith(streamingModel(words, 10), {
@@ -216,11 +216,14 @@ describe("look", () => {
 		});
 
 		const chunks: string[] = [];
-		for await (const chunk of textStream) {
-			chunks.push(chunk);
-			if (chunks.length === 2) controller.abort();
-		}
-		expect(chunks.length).toBeLessThan(words.length);
+		const error = await (async () => {
+			for await (const chunk of textStream) {
+				chunks.push(chunk);
+				if (chunks.length === 2) controller.abort();
+			}
+		})().catch((e: unknown) => e);
+		expect(chunks).toEqual(["w0 ", "w1 "]); // nothing after the abort
+		expect((error as LookError).kind).toBe("aborted");
 	});
 
 	it("retries once when the model is busy", async () => {

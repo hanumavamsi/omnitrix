@@ -7,7 +7,7 @@ import {
 	ipcMain,
 	screen,
 } from "electron";
-import type { Area, HudMessage } from "../preload/index.ts";
+import type { Area, HudEvents, HudMessage } from "../preload/index.ts";
 import { getSettings } from "./settings.ts";
 import {
 	GetForegroundWindow,
@@ -27,6 +27,8 @@ type HudOptions = {
 	onClosed: () => void;
 	onRegion: (display: Display, rect: Area, question: string) => void;
 	onFollowUp: (text: string) => void;
+	onRetry: () => void;
+	onOpenConsole: () => void;
 };
 
 function createHud(display: Display) {
@@ -80,19 +82,54 @@ export function setupHud(hudOptions: HudOptions) {
 	screen.on("display-added", rebuildHuds);
 	screen.on("display-removed", rebuildHuds);
 	screen.on("display-metrics-changed", rebuildHuds);
-	ipcMain.on("hud:close", () => closeHud());
-	ipcMain.on("hud:pointer-over-panel", (event, over: boolean) => {
-		BrowserWindow.fromWebContents(event.sender)?.setIgnoreMouseEvents(!over, {
-			forward: true,
-		});
-	});
-	ipcMain.on("hud:region", (event, rect: Area, question: string) => {
-		if (!shownDisplay || event.sender !== shown?.webContents) return;
-		options.onRegion(shownDisplay, rect, question);
-	});
-	ipcMain.on("hud:follow-up", (_event, text: string) =>
-		options.onFollowUp(text),
+	listen();
+}
+
+const isArea = (value: unknown): value is Area =>
+	typeof value === "object" &&
+	value !== null &&
+	(["x", "y", "width", "height"] as const).every((key) =>
+		Number.isFinite((value as Record<string, unknown>)[key]),
 	);
+
+// Each HUD -> main channel: does a payload have the declared shape? The trust seam is here, once.
+const shapes: { [C in keyof HudEvents]: (args: unknown[]) => boolean } = {
+	"hud:close": () => true,
+	"hud:open-console": () => true,
+	"hud:retry": () => true,
+	"hud:pointer-over-panel": ([over]) => typeof over === "boolean",
+	"hud:region": ([rect, question]) =>
+		isArea(rect) && typeof question === "string",
+	"hud:follow-up": ([text]) => typeof text === "string",
+};
+
+/** Registers handler for channel, called only for a HUD window's message of the right shape. */
+function on<C extends keyof HudEvents>(
+	channel: C,
+	handler: (win: BrowserWindow, ...args: HudEvents[C]) => void,
+) {
+	ipcMain.on(channel, (event, ...args: unknown[]) => {
+		const win = [...huds.values()].find((w) => w.webContents === event.sender);
+		if (win && shapes[channel](args)) handler(win, ...(args as HudEvents[C]));
+	});
+}
+
+/** Every HUD -> main handler. */
+function listen() {
+	on("hud:close", () => closeHud());
+	on("hud:open-console", () => {
+		closeHud({ returnFocus: false });
+		options.onOpenConsole();
+	});
+	on("hud:retry", () => options.onRetry());
+	on("hud:pointer-over-panel", (win, over) =>
+		win.setIgnoreMouseEvents(!over, { forward: true }),
+	);
+	on("hud:region", (win, rect, question) => {
+		if (shownDisplay && win === shown)
+			options.onRegion(shownDisplay, rect, question);
+	});
+	on("hud:follow-up", (_win, text) => options.onFollowUp(text));
 }
 
 /** Recordable on: screen capture (OBS, Game Bar, test screenshots) sees the HUD (D13). */

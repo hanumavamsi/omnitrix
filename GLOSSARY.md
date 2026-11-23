@@ -8,6 +8,10 @@ Windows desktop assistant that understands what is on screen and acts in the bro
 The half of Omnitrix that understands on-screen content the user points at (a selection or a dragged region) and explains it.
 _Avoid_: Vision mode, explain mode
 
+**Conversation**:
+One Look's capture and the answers and follow-ups about it, open until the HUD panel closes or the hotkey is pressed again. History keeps one entry per conversation.
+_Avoid_: Session, chat, thread
+
 **Act**:
 The half of Omnitrix that performs steps in an app on the user's behalf, visibly and behind safety gates.
 _Avoid_: Automation, agent mode

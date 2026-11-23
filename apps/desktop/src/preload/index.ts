@@ -23,6 +23,19 @@ export type HudMessage =
 	| { type: "fallback" } // the fallback model is answering
 	| { type: "done" };
 
+/**
+ * HUD -> main messages: channel -> its arguments, as the api below sends them.
+ * Main trusts none of it: hud.ts checks the sender is a HUD window and the shapes, in one place.
+ */
+export type HudEvents = {
+	"hud:close": [];
+	"hud:open-console": [];
+	"hud:retry": [];
+	"hud:pointer-over-panel": [over: boolean];
+	"hud:region": [rect: Area, question: string];
+	"hud:follow-up": [text: string];
+};
+
 const api = {
 	onMessage: (handler: (message: HudMessage) => void) =>
 		ipcRenderer.on("hud", (_event, message: HudMessage) => handler(message)),
