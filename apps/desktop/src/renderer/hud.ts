@@ -2,17 +2,20 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import markedKatex from "marked-katex-extension";
 import type { Area, HudMessage, OmniApi } from "../preload/index.ts";
+import {
+	type HudEvent,
+	type HudState,
+	initialState,
+	nextState,
+	type Turn,
+} from "./hudState.ts";
+import { placePanel, placeQuestion } from "./placement.ts";
 
 declare global {
 	interface Window {
 		omni: OmniApi;
 	}
 }
-
-const MARGIN = 8; // keep clear of the screen edge
-const GAP = 14; // keep clear of the cursor or the box
-const MIN_ROOM = 160; // with less room than this beside the box, the panel goes inside it
-const MIN_DRAG = 8; // a smaller box is a click, not a drag
 
 const dim = document.getElementById("dim") as HTMLElement;
 const command = document.getElementById("command") as HTMLInputElement;
@@ -33,146 +36,147 @@ function renderMarkdown(text: string) {
 	return DOMPurify.sanitize(marked.parse(text, { async: false }));
 }
 
-// --- Answer panel ---
+let state: HudState = initialState;
 
-let answer = document.createElement("div"); // the answer streaming in now
-let answerText = "";
-
-/** Empties the current answer for a new attempt; main sends the redacted count and fallback tag again. */
-function resetAnswer() {
-	answer.className = "answer waiting";
-	answer.textContent = "";
-	answerText = "";
-	retryButton.hidden = true;
-	fallbackTag.hidden = true;
-	redacted.hidden = true;
+function dispatch(event: HudEvent) {
+	state = nextState(state, event);
+	render(state);
 }
 
-function startAnswer() {
-	answer = document.createElement("div");
-	transcript.append(answer);
-	resetAnswer();
-}
+// --- Render: the only place that shows or hides anything ---
 
-/** Plain text in the current answer, plus an "Open Console" button when main asks for one. */
-function showText(className: string, text: string, openConsole?: boolean) {
-	answer.className = className;
-	answer.textContent = text;
-	if (!openConsole) return;
-	const button = document.createElement("button");
-	button.type = "button";
-	button.className = "action";
-	button.textContent = "Open Console";
-	button.addEventListener("click", () => window.omni.openConsole());
-	answer.append(button);
-}
-
-function setPanel(
-	left: number,
-	top: number | null,
-	bottom: number | null,
-	maxHeight: number,
-) {
-	Object.assign(panel.style, {
-		left: `${left}px`,
-		top: top === null ? "auto" : `${top}px`,
-		bottom: bottom === null ? "auto" : `${bottom}px`,
-		maxHeight: `${maxHeight}px`,
-	});
-}
-
-// Beside the box (a zero-size box for the cursor) on the side with more room, capped to that room
-// so it never leaves the work area; inside the box when the box nearly fills the screen.
-function place(target: Area, area: Area, position: "cursor" | "fixed") {
-	const right = area.x + area.width - panel.offsetWidth - MARGIN;
-	const bottom = area.y + area.height;
-	if (position === "fixed")
-		return setPanel(right, area.y + MARGIN, null, area.height - 2 * MARGIN);
-
-	const clampLeft = (x: number) =>
-		Math.max(area.x + MARGIN, Math.min(x, right));
-	// The cursor or box can reach onto the taskbar, outside the work area.
-	const clampY = (y: number) => Math.min(Math.max(y, area.y), bottom);
-	const boxTop = clampY(target.y);
-	const boxBottom = clampY(target.y + target.height);
-	const roomBelow = bottom - boxBottom - GAP - MARGIN;
-	const roomAbove = boxTop - area.y - GAP - MARGIN;
-	if (Math.max(roomBelow, roomAbove) < MIN_ROOM) {
-		const top = boxTop + MARGIN;
-		return setPanel(
-			clampLeft(target.x + MARGIN),
-			top,
-			null,
-			boxBottom - top - MARGIN,
-		);
+function render(state: HudState) {
+	dim.hidden = state.kind !== "picking";
+	panel.hidden = state.kind !== "answering";
+	if (state.kind === "picking") {
+		box.hidden = !state.box;
+		if (state.box) setBox(state.box);
+		boxQuestion.hidden = !state.asking;
+		if (state.asking && state.box) {
+			const { left, top } = placeQuestion(state.box, {
+				width: innerWidth,
+				height: innerHeight,
+			});
+			Object.assign(boxQuestion.style, { left: `${left}px`, top: `${top}px` });
+		}
 	}
-	if (roomBelow >= roomAbove)
-		setPanel(clampLeft(target.x), boxBottom + GAP, null, roomBelow);
-	else
-		setPanel(clampLeft(target.x), null, innerHeight - boxTop + GAP, roomAbove);
+	if (state.kind === "answering") {
+		renderTurns([...state.transcript, state.current]);
+		followUp.hidden = !state.followUp;
+		retryButton.hidden = !state.retry;
+		fallbackTag.hidden = !state.fallback;
+		redacted.hidden = state.redacted === null;
+		if (state.redacted !== null)
+			redacted.textContent = `${state.redacted} secret${state.redacted === 1 ? "" : "s"} redacted`;
+	}
 }
 
-followUp.addEventListener("keydown", (event) => {
-	const text = followUp.value.trim();
-	if (event.key !== "Enter" || !text) return;
-	followUp.value = "";
-	const question = document.createElement("div");
-	question.className = "question";
-	question.textContent = text;
-	transcript.append(question);
-	startAnswer();
-	transcript.scrollTop = transcript.scrollHeight;
-	window.omni.followUp(text);
-});
-
-// --- Region selection (dim screen) ---
-
-let start: { x: number; y: number } | null = null;
-let rect: Area | null = null;
-
-dim.addEventListener("mousedown", (event) => {
-	if (event.target instanceof HTMLInputElement) return; // clicking an input is typing, not dragging
-	start = { x: event.clientX, y: event.clientY };
-	rect = null;
-	boxQuestion.hidden = true;
-	box.hidden = true;
-});
-
-addEventListener("mousemove", (event) => {
-	if (!start) return;
-	// Clamp to this monitor: dragging past its edge must not leave the HUD.
-	const x = Math.min(Math.max(event.clientX, 0), innerWidth);
-	const y = Math.min(Math.max(event.clientY, 0), innerHeight);
-	rect = {
-		x: Math.min(start.x, x),
-		y: Math.min(start.y, y),
-		width: Math.abs(x - start.x),
-		height: Math.abs(y - start.y),
-	};
+function setBox(rect: Area) {
 	Object.assign(box.style, {
 		left: `${rect.x}px`,
 		top: `${rect.y}px`,
 		width: `${rect.width}px`,
 		height: `${rect.height}px`,
 	});
-	box.hidden = false;
+}
+
+let shownTurns: readonly Turn[] = [];
+
+/** Updates only the turns that changed (state is immutable), so a chunk re-renders one answer. */
+function renderTurns(turns: readonly Turn[]) {
+	turns.forEach((turn, i) => {
+		const before = shownTurns[i];
+		if (before === turn) return;
+		const element =
+			(transcript.children[i] as HTMLElement | undefined) ??
+			transcript.appendChild(document.createElement("div"));
+		renderTurn(element, turn, before);
+	});
+	while (transcript.children.length > turns.length)
+		transcript.lastElementChild?.remove();
+	shownTurns = turns;
+}
+
+const answerClass = {
+	waiting: "answer waiting",
+	done: "answer",
+	error: "answer error",
+};
+
+function renderTurn(element: HTMLElement, turn: Turn, before?: Turn) {
+	if (turn.kind === "question") {
+		element.className = "question";
+		element.textContent = turn.text;
+		return;
+	}
+	element.className = answerClass[turn.status];
+	const sameContent =
+		before?.kind === "answer" &&
+		before.markdown === turn.markdown &&
+		before.plain === turn.plain;
+	if (sameContent) return; // only the status changed, e.g. done
+	if (!turn.plain) {
+		element.innerHTML = renderMarkdown(turn.markdown);
+		return;
+	}
+	element.textContent = turn.plain.text;
+	if (!turn.plain.openConsole) return;
+	const button = document.createElement("button");
+	button.type = "button";
+	button.className = "action";
+	button.textContent = "Open Console";
+	button.addEventListener("click", () => window.omni.openConsole());
+	element.append(button);
+}
+
+// --- Answer panel ---
+
+function applyPlacement(message: Extract<HudMessage, { type: "answer" }>) {
+	const placed = placePanel({
+		box: message.box,
+		area: message.area,
+		panel: { width: panel.offsetWidth }, // measured, so the panel must already be shown
+		position: message.position,
+	});
+	Object.assign(panel.style, {
+		left: `${placed.left}px`,
+		top: "top" in placed ? `${placed.top}px` : "auto",
+		bottom: "bottom" in placed ? `${innerHeight - placed.bottom}px` : "auto",
+		maxHeight: `${placed.maxHeight}px`,
+	});
+}
+
+followUp.addEventListener("keydown", (event) => {
+	const text = followUp.value.trim();
+	if (event.key !== "Enter" || !text) return;
+	followUp.value = "";
+	dispatch({ type: "followUp", text });
+	transcript.scrollTop = transcript.scrollHeight;
+	window.omni.followUp(text);
+});
+
+// --- Region selection (dim screen) ---
+
+dim.addEventListener("mousedown", (event) => {
+	if (event.target instanceof HTMLInputElement) return; // clicking an input is typing, not dragging
+	dispatch({ type: "dragStart", x: event.clientX, y: event.clientY });
+});
+
+addEventListener("mousemove", (event) => {
+	if (state.kind !== "picking" || !state.dragStart) return;
+	// Clamp to this monitor: dragging past its edge must not leave the HUD.
+	const x = Math.min(Math.max(event.clientX, 0), innerWidth);
+	const y = Math.min(Math.max(event.clientY, 0), innerHeight);
+	dispatch({ type: "dragMove", x, y });
 });
 
 addEventListener("mouseup", () => {
-	if (!start) return;
-	start = null;
-	if (!rect || rect.width < MIN_DRAG || rect.height < MIN_DRAG) {
-		rect = null;
-		box.hidden = true;
-		return;
-	}
+	if (state.kind !== "picking" || !state.dragStart) return;
+	dispatch({ type: "dragEnd" });
+	if (!state.box) return;
 	if (command.value.trim()) return submitRegion(command.value); // question typed before the drag
-	Object.assign(boxQuestion.style, {
-		left: `${Math.max(0, Math.min(rect.x, innerWidth - 330))}px`,
-		top: `${Math.min(rect.y + rect.height + 6, innerHeight - 40)}px`,
-	});
 	boxQuestion.value = "";
-	boxQuestion.hidden = false;
+	dispatch({ type: "ask" });
 	boxQuestion.focus();
 });
 
@@ -184,10 +188,9 @@ const nextFrame = () =>
 	new Promise((resolve) => requestAnimationFrame(resolve));
 
 async function submitRegion(question: string) {
-	if (!rect) return;
-	const captured = rect;
-	rect = null;
-	dim.hidden = true;
+	if (state.kind !== "picking" || !state.box) return;
+	const captured = state.box;
+	dispatch({ type: "submit" });
 	// With Recordable on there is no content protection, so the dim layer must be off screen before main grabs it.
 	await nextFrame();
 	await nextFrame();
@@ -197,54 +200,21 @@ async function submitRegion(question: string) {
 // --- Messages from main ---
 
 window.omni.onMessage((message: HudMessage) => {
-	switch (message.type) {
-		case "region":
-			panel.hidden = true;
-			box.hidden = true;
-			boxQuestion.hidden = true;
-			start = rect = null;
-			command.value = "";
-			dim.hidden = false;
-			command.focus();
-			break;
-		case "answer":
-			dim.hidden = true;
-			transcript.replaceChildren();
-			followUp.value = "";
-			followUp.hidden = false;
-			startAnswer();
-			panel.hidden = false;
-			place(message.box, message.area, message.position);
-			followUp.focus();
-			break;
-		case "chunk":
-			answerText += message.text;
-			answer.innerHTML = renderMarkdown(answerText);
-			break;
-		case "notice":
-			showText("answer", message.text, message.openConsole);
-			followUp.hidden = true; // a notice has no session to follow up on
-			break;
-		case "error":
-			showText("answer error", message.text, message.openConsole);
-			retryButton.hidden = !message.retry;
-			break;
-		case "redacted":
-			redacted.textContent = `${message.count} secret${message.count === 1 ? "" : "s"} redacted`;
-			redacted.hidden = false;
-			break;
-		case "fallback":
-			fallbackTag.hidden = false;
-			break;
-		case "done":
-			answer.className = "answer";
-			break;
+	dispatch(message);
+	if (message.type === "region") {
+		command.value = "";
+		command.focus();
+	}
+	if (message.type === "answer") {
+		followUp.value = "";
+		applyPlacement(message);
+		followUp.focus();
 	}
 });
 
 closeButton.addEventListener("click", () => window.omni.close());
 retryButton.addEventListener("click", () => {
-	resetAnswer(); // the retried answer replaces the failed one
+	dispatch({ type: "retry" });
 	window.omni.retry();
 });
 addEventListener(
