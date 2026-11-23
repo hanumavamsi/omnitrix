@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+		<title>Omnitrix HUD</title>
+		<link rel="stylesheet" href="./hud.css" />
+	</head>
+	<body>
+		<div id="dim" hidden>
+			<input id="command" aria-label="Question" placeholder="Question (optional), then drag a box · Esc cancels" />
+			<div id="box" hidden></div>
+			<input id="box-question" aria-label="Question" placeholder="Question (optional) · Enter" hidden />
+		</div>
+		<section id="panel" hidden>
+			<button id="close" type="button" aria-label="Close">✕</button>
+			<span id="fallback-tag" hidden>fallback model</span>
+			<div id="transcript" aria-live="polite"></div>
+			<div id="redacted" hidden></div>
+			<button id="retry" type="button" hidden>Retry</button>
+			<input id="follow-up" aria-label="Follow-up question" placeholder="Follow-up · Enter" />
+		</section>
+		<script type="module" src="./hud.ts"></script>
+	</body>
+</html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+		<title>Omnitrix Console</title>
+		<link rel="stylesheet" href="./console.css" />
+	</head>
+	<body>
+		<header>
+			<h1>OMNITRIX</h1>
+			<div class="tabs" role="tablist">
+				<button type="button" role="tab" aria-selected="true" aria-controls="settings">Settings</button>
+				<button type="button" role="tab" aria-selected="false" aria-controls="history">History</button>
+			</div>
+		</header>
+		<main>
+			<section id="settings" role="tabpanel">
+				<h2>API keys</h2>
+				<div id="providers"></div>
+
+				<h2>Models</h2>
+				<p class="hint">Format <code>provider:model</code>, e.g. <code>google:gemini-flash-latest</code>.</p>
+				<form id="settings-form">
+					<label>Look model <input name="lookModel" spellcheck="false" /></label>
+					<label>Look fallback model <input name="lookFallbackModel" spellcheck="false" /></label>
+					<label>Act model <input name="actModel" spellcheck="false" /></label>
+					<label>Act fallback model <input name="actFallbackModel" spellcheck="false" /></label>
+
+					<h2>HUD</h2>
+					<label>Panel position
+						<select name="panelPosition">
+							<option value="cursor">Near the cursor</option>
+							<option value="fixed">Fixed</option>
+						</select>
+					</label>
+					<label class="check"><input type="checkbox" name="recordable" /> Recordable (screen capture can see the HUD)</label>
+
+					<h2>Privacy</h2>
+					<label class="check"><input type="checkbox" name="saveHistory" /> Save history</label>
+					<label class="check"><input type="checkbox" name="traceContent" /> Include page content in traces</label>
+				</form>
+				<p id="status" role="status"></p>
+			</section>
+			<section id="history" role="tabpanel" hidden>
+				<div class="row">
+					<h2 class="grow">Past Looks (kept 14 days)</h2>
+					<button type="button" id="delete-all">Delete all</button>
+				</div>
+				<ol id="history-list"></ol>
+				<p id="history-status" role="status"></p>
+			</section>
+		</main>
+		<script type="module" src="./console.ts"></script>
+	</body>
+</html>

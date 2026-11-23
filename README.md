@@ -21,7 +21,14 @@ Requires Node 22+ and [gitleaks](https://github.com/gitleaks/gitleaks) (pre-comm
 npm install
 git config core.hooksPath .githooks
 cp .env.example .env   # add your key; .env is git-ignored
+
+npm run dev        # start the app: select text, press Ctrl+Shift+Space; Ctrl+Alt+Esc quits
+npm test           # Vitest, all workspaces
+npm run lint       # Biome
+npm run typecheck  # tsc, all workspaces
 ```
+
+Settings live in `%APPDATA%\omnitrix\settings.json` (created with defaults on first run).
 
 ## License
 

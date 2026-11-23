@@ -2,5 +2,23 @@
 	"name": "@omnitrix/desktop",
 	"version": "0.0.0",
 	"private": true,
-	"type": "module"
+	"type": "module",
+	"main": "out/main/index.js",
+	"scripts": {
+		"dev": "electron-vite dev",
+		"build": "electron-vite build",
+		"typecheck": "tsc -p ."
+	},
+	"dependencies": {
+		"@omnitrix/agent": "*",
+		"dompurify": "^3.5.0",
+		"katex": "^0.18.11",
+		"koffi": "^3.3.8",
+		"marked": "^18.2.1",
+		"marked-katex-extension": "^5.1.13"
+	},
+	"devDependencies": {
+		"electron-vite": "^6.0.0",
+		"vite": "^8.3.8"
+	}
 }
