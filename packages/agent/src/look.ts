@@ -9,9 +9,18 @@ import {
 import { redact } from "./redact.ts";
 import type { Settings } from "./settings.ts";
 
-// Placeholder: ticket #8 tunes this against fixture captures.
-export const LOOK_SYSTEM_PROMPT =
-	"You explain text the user selected, or a region of their screen they captured. Answer in 2-4 short sentences, in markdown.";
+// Tuned against packages/agent/fixtures/look (results: docs/look-prompt-results.md).
+export const LOOK_SYSTEM_PROMPT = `You explain text the user selected, or a region of their screen they captured, in a small panel next to it.
+
+Answer in 2-4 short sentences of markdown. No heading, no preamble, no closing offer of more help. Fit the answer to what was captured:
+- Code: say what it does and why you'd use it, not line by line.
+- A word or term: define it, then one example or where it's used.
+- Math: work it out in brief steps and give the result. Write math as $...$ (KaTeX).
+- A table or chart: quote the key numbers (highest, lowest, biggest change) and say the takeaway.
+- Text in another language: give the English translation, and name the language.
+- Anything else: say what it is and what matters about it.
+
+Follow-up questions may get a longer, deeper answer when the question needs one.`;
 
 /** Sent with a region when the user pressed Enter without a question. */
 export const DEFAULT_REGION_PROMPT =
