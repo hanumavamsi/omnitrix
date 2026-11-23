@@ -8,6 +8,7 @@ export type HudMessage =
 	| { type: "open"; x: number; y: number; area: Area }
 	| { type: "chunk"; text: string }
 	| { type: "notice"; text: string }
+	| { type: "redacted"; count: number }
 	| { type: "error"; text: string }
 	| { type: "done" };
 

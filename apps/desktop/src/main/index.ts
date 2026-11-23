@@ -39,13 +39,15 @@ async function onHotkey() {
 		});
 
 	try {
-		const { textStream } = look({
+		const { textStream, redactedCount } = look({
 			capture: { kind: "text", text },
 			conversation: [],
 			settings,
 			getModel,
 			signal,
 		});
+		if (redactedCount > 0)
+			sendToHud({ type: "redacted", count: redactedCount });
 		for await (const chunk of textStream) {
 			if (signal.aborted) return; // drop late chunks
 			sendToHud({ type: "chunk", text: chunk });

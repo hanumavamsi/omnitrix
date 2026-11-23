@@ -11,6 +11,7 @@ const GAP = 14; // keep clear of the cursor
 
 const panel = document.getElementById("panel") as HTMLElement;
 const answer = document.getElementById("answer") as HTMLElement;
+const redacted = document.getElementById("redacted") as HTMLElement;
 const closeButton = document.getElementById("close") as HTMLButtonElement;
 
 // Below or above the cursor, whichever has more room, capped to that room so it never leaves the work area.
@@ -46,6 +47,7 @@ window.omni.onMessage((message) => {
 		case "open":
 			answer.textContent = "";
 			answer.className = "waiting";
+			redacted.hidden = true;
 			panel.hidden = false;
 			placeNear(message.x, message.y, message.area);
 			break;
@@ -55,6 +57,10 @@ window.omni.onMessage((message) => {
 		case "notice":
 			answer.className = "";
 			answer.textContent = message.text;
+			break;
+		case "redacted":
+			redacted.textContent = `${message.count} secret${message.count === 1 ? "" : "s"} redacted`;
+			redacted.hidden = false;
 			break;
 		case "error":
 			answer.className = "error";
