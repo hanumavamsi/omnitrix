@@ -13,6 +13,16 @@ const panel = document.getElementById("panel") as HTMLElement;
 const answer = document.getElementById("answer") as HTMLElement;
 const redacted = document.getElementById("redacted") as HTMLElement;
 const closeButton = document.getElementById("close") as HTMLButtonElement;
+const retryButton = document.getElementById("retry") as HTMLButtonElement;
+const fallbackTag = document.getElementById("fallback-tag") as HTMLElement;
+
+function startAnswer() {
+	answer.textContent = "";
+	answer.className = "waiting";
+	retryButton.hidden = true;
+	fallbackTag.hidden = true;
+	redacted.hidden = true; // runLook sends the count again on Retry
+}
 
 // Below or above the cursor, whichever has more room, capped to that room so it never leaves the work area.
 function placeNear(cursorX: number, cursorY: number, area: Area) {
@@ -45,9 +55,7 @@ function placeNear(cursorX: number, cursorY: number, area: Area) {
 window.omni.onMessage((message) => {
 	switch (message.type) {
 		case "open":
-			answer.textContent = "";
-			answer.className = "waiting";
-			redacted.hidden = true;
+			startAnswer();
 			panel.hidden = false;
 			placeNear(message.x, message.y, message.area);
 			break;
@@ -73,6 +81,10 @@ window.omni.onMessage((message) => {
 		case "error":
 			answer.className = "error";
 			answer.textContent = message.text;
+			retryButton.hidden = !message.retry;
+			break;
+		case "fallback":
+			fallbackTag.hidden = false;
 			break;
 		case "done":
 			answer.className = "";
@@ -81,6 +93,10 @@ window.omni.onMessage((message) => {
 });
 
 closeButton.addEventListener("click", () => window.omni.close());
+retryButton.addEventListener("click", () => {
+	startAnswer();
+	window.omni.retry();
+});
 addEventListener(
 	"keydown",
 	(event) => event.key === "Escape" && window.omni.close(),

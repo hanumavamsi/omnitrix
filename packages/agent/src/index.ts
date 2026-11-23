@@ -1,6 +1,8 @@
 export {
 	type Capture,
 	LOOK_SYSTEM_PROMPT,
+	LookError,
+	type LookErrorKind,
 	type LookRequest,
 	type LookResult,
 	look,

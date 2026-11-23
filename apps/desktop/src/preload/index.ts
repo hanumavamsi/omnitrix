@@ -9,7 +9,8 @@ export type HudMessage =
 	| { type: "chunk"; text: string }
 	| { type: "notice"; text: string; openConsole?: boolean } // openConsole: add an "Open Console" button
 	| { type: "redacted"; count: number }
-	| { type: "error"; text: string }
+	| { type: "error"; text: string; retry: boolean }
+	| { type: "fallback" } // the fallback model is answering
 	| { type: "done" };
 
 const api = {
@@ -17,6 +18,7 @@ const api = {
 		ipcRenderer.on("hud", (_event, message: HudMessage) => handler(message)),
 	close: () => ipcRenderer.send("hud:close"),
 	openConsole: () => ipcRenderer.send("hud:open-console"),
+	retry: () => ipcRenderer.send("hud:retry"),
 	pointerOverPanel: (over: boolean) =>
 		ipcRenderer.send("hud:pointer-over-panel", over),
 };
