@@ -1,7 +1,8 @@
-import { simulateReadableStream } from "ai";
+import { type ModelMessage, simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
 import { LOOK_SYSTEM_PROMPT, look } from "./look.ts";
+import { REDACTED } from "./redact.ts";
 import { defaultSettings } from "./settings.ts";
 
 const usage = {
@@ -42,11 +43,13 @@ function streamingModel(words: string[], chunkDelayInMs = 0) {
 function lookWith(
 	model: MockLanguageModelV4,
 	signal = new AbortController().signal,
+	text = "const x = 1;",
+	conversation: ModelMessage[] = [],
 ) {
 	const asked: string[] = [];
 	const result = look({
-		capture: { kind: "text", text: "const x = 1;" },
-		conversation: [],
+		capture: { kind: "text", text },
+		conversation,
 		settings: defaultSettings,
 		getModel: (id) => {
 			asked.push(id);
@@ -107,5 +110,29 @@ describe("look", () => {
 		await expect(collect(lookWith(model).textStream)).rejects.toThrow(
 			"bad key",
 		);
+	});
+
+	it("sends only redacted text to the model and reports the count", async () => {
+		const model = streamingModel(["ok"]);
+		const fakeKey = `AIza${"FAKE".repeat(8)}abc`;
+		const { textStream, redactedCount } = lookWith(
+			model,
+			undefined,
+			`PASSWORD=hunter2
+key = ${fakeKey}`,
+			[{ role: "user", content: "DB_TOKEN=abc" }],
+		);
+		await collect(textStream);
+
+		expect(redactedCount).toBe(3);
+		const prompt = JSON.stringify(model.doStreamCalls[0]?.prompt);
+		expect(prompt).not.toContain("hunter2");
+		expect(prompt).not.toContain(fakeKey);
+		expect(prompt).toContain(`PASSWORD=${REDACTED}`);
+		expect(prompt).toContain(`DB_TOKEN=${REDACTED}`);
+	});
+
+	it("reports zero when nothing needs redacting", () => {
+		expect(lookWith(streamingModel(["ok"])).redactedCount).toBe(0);
 	});
 });

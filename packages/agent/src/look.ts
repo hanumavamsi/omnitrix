@@ -1,4 +1,5 @@
 import { type LanguageModel, type ModelMessage, streamText } from "ai";
+import { redact } from "./redact.ts";
 import type { Settings } from "./settings.ts";
 
 // Placeholder: ticket #8 tunes this against fixture captures.
@@ -20,20 +21,34 @@ export type LookRequest = {
 export type LookResult = {
 	/** Answer text as it streams. Throws on a model error; ends quietly on abort. */
 	textStream: AsyncIterable<string>;
+	/** How many secrets were replaced with "[redacted secret]" before the model saw the text. */
+	redactedCount: number;
 };
 
 export function look(request: LookRequest): LookResult {
+	let redactedCount = 0;
+	const clean = (text: string) => {
+		const result = redact(text);
+		redactedCount += result.count;
+		return result.text;
+	};
+	// Follow-ups arrive as user turns in the conversation, so those are cleaned too.
+	const conversation = request.conversation.map((message) =>
+		message.role === "user" && typeof message.content === "string"
+			? { ...message, content: clean(message.content) }
+			: message,
+	);
 	const result = streamText({
 		model: request.getModel(request.settings.lookModel),
 		instructions: LOOK_SYSTEM_PROMPT,
 		messages: [
-			...request.conversation,
-			{ role: "user", content: request.capture.text },
+			...conversation,
+			{ role: "user", content: clean(request.capture.text) },
 		],
 		abortSignal: request.signal,
 		maxRetries: 1,
 	});
-	return { textStream: textOf(result.stream) };
+	return { textStream: textOf(result.stream), redactedCount };
 }
 
 // The SDK's own textStream swallows errors; this one rethrows them so the HUD can show them.

@@ -27,6 +27,14 @@ body {
 	white-space: pre-wrap; /* on #answer only: on #panel the markup's newlines render as a blank line */
 }
 
+#redacted {
+	margin-top: 6px;
+	color: #00ff66;
+	font-size: 11px;
+	opacity: 0.7;
+}
+
+#redacted[hidden],
 #panel[hidden] {
 	display: none;
 }
