@@ -12,7 +12,7 @@ import {
 } from "electron";
 import type { ConsoleState } from "../preload/console.ts";
 import { deleteHistory, listHistory } from "./history.ts";
-import { closeHud, setRecordable } from "./hud.ts";
+import { setRecordable } from "./hud.ts";
 import { clearApiKey, providers, providerViews, setApiKey } from "./keys.ts";
 import { dataDir, getSettings, saveSettings } from "./settings.ts";
 
@@ -112,9 +112,5 @@ export function setupConsole() {
 		// The URL is ours, never the page's.
 		const url = providers.find((p) => p.id === provider)?.keyUrl;
 		if (url && win && event.sender === win.webContents) shell.openExternal(url);
-	});
-	ipcMain.on("hud:open-console", () => {
-		closeHud({ returnFocus: false });
-		openConsole();
 	});
 }
