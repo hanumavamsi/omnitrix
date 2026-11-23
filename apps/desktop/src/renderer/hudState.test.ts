@@ -27,7 +27,7 @@ function answering(state: HudState) {
 describe("nextState", () => {
 	it("region -> drag -> answer -> chunks -> done", () => {
 		let state = run([
-			{ type: "region" },
+			{ type: "region", area },
 			{ type: "dragStart", x: 100, y: 100 },
 			{ type: "dragMove", x: 50, y: 300 },
 			{ type: "dragEnd" },
@@ -58,7 +58,7 @@ describe("nextState", () => {
 
 	it("a drag smaller than a click leaves no box", () => {
 		const state = run([
-			{ type: "region" },
+			{ type: "region", area },
 			{ type: "dragStart", x: 100, y: 100 },
 			{ type: "dragMove", x: 104, y: 300 },
 			{ type: "dragEnd" },

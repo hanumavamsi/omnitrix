@@ -81,15 +81,30 @@ describe("placePanel", () => {
 });
 
 describe("placeQuestion", () => {
-	const viewport = { width: 1920, height: 1080 };
 	it("sits under the box", () => {
 		expect(
-			placeQuestion({ x: 100, y: 100, width: 50, height: 50 }, viewport),
+			placeQuestion({ x: 100, y: 100, width: 50, height: 50 }, area),
 		).toEqual({ left: 100, top: 156 });
 	});
-	it("stays on the monitor near the right and bottom edges", () => {
+	it("goes above a box near the taskbar", () => {
 		expect(
-			placeQuestion({ x: 1800, y: 900, width: 100, height: 170 }, viewport),
-		).toEqual({ left: 1590, top: 1040 });
+			placeQuestion({ x: 100, y: 900, width: 100, height: 120 }, area),
+		).toEqual({ left: 100, top: 854 });
+	});
+	it("goes inside a nearly full-height box, still in the work area", () => {
+		expect(
+			placeQuestion({ x: 100, y: 10, width: 500, height: 1070 }, area),
+		).toEqual({ left: 100, top: 1000 });
+	});
+	it("clamps left at the right edge", () => {
+		expect(
+			placeQuestion({ x: 1800, y: 100, width: 100, height: 50 }, area),
+		).toEqual({ left: 1590, top: 156 });
+	});
+	it("respects a work area offset by a top or left taskbar", () => {
+		const offset = { x: 60, y: 40, width: 1860, height: 1040 };
+		expect(
+			placeQuestion({ x: 0, y: 40, width: 100, height: 1040 }, offset),
+		).toEqual({ left: 60, top: 1034 });
 	});
 });

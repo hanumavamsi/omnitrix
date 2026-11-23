@@ -5,11 +5,11 @@ export type Area = { x: number; y: number; width: number; height: number };
 
 /**
  * Main -> HUD messages. All boxes are in CSS px of the HUD's monitor.
- * "region": the dim screen with the command box. "answer": a fresh panel next to box
+ * "region": the dim screen with the command box, area as below. "answer": a fresh panel next to box
  * (the dragged region, or a zero-size box at the cursor), kept inside area (the work area, no taskbar).
  */
 export type HudMessage =
-	| { type: "region" }
+	| { type: "region"; area: Area }
 	| {
 			type: "answer";
 			box: Area;

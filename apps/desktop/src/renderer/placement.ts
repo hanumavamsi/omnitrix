@@ -68,16 +68,22 @@ export function placePanel({
 	};
 }
 
-/** The question input under the dragged box, kept on the monitor (viewport = the HUD window). */
-export function placeQuestion(
-	box: Area,
-	viewport: { width: number; height: number },
-) {
+/** The question input under the dragged box, else above it, else inside its bottom; always in the work area. */
+export function placeQuestion(box: Area, area: Area) {
+	const bottom = area.y + area.height - QUESTION_HEIGHT; // lowest top that clears the taskbar
+	const below = box.y + box.height + QUESTION_GAP;
+	const above = box.y - QUESTION_GAP - QUESTION_HEIGHT;
+	const inside = box.y + box.height - QUESTION_GAP - QUESTION_HEIGHT;
 	return {
-		left: Math.max(0, Math.min(box.x, viewport.width - QUESTION_WIDTH)),
-		top: Math.min(
-			box.y + box.height + QUESTION_GAP,
-			viewport.height - QUESTION_HEIGHT,
+		left: Math.max(
+			area.x,
+			Math.min(box.x, area.x + area.width - QUESTION_WIDTH),
 		),
+		top:
+			below <= bottom
+				? below
+				: above >= area.y
+					? above
+					: Math.max(area.y, Math.min(inside, bottom)),
 	};
 }

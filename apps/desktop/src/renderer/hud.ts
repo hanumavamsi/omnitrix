@@ -34,6 +34,7 @@ function renderMarkdown(text: string) {
 }
 
 let state: HudState = initialState;
+let regionArea: Area = { x: 0, y: 0, width: innerWidth, height: innerHeight }; // the work area, from the region message
 
 function dispatch(event: HudEvent) {
 	state = nextState(state, event);
@@ -50,10 +51,7 @@ function render(state: HudState) {
 		if (state.box) setBox(state.box);
 		boxQuestion.hidden = !state.asking;
 		if (state.asking && state.box) {
-			const { left, top } = placeQuestion(state.box, {
-				width: innerWidth,
-				height: innerHeight,
-			});
+			const { left, top } = placeQuestion(state.box, regionArea);
 			Object.assign(boxQuestion.style, { left: `${left}px`, top: `${top}px` });
 		}
 	}
@@ -197,6 +195,7 @@ async function submitRegion(question: string) {
 // --- Messages from main ---
 
 window.omni.onMessage((message: HudMessage) => {
+	if (message.type === "region") regionArea = message.area; // before dispatch renders with it
 	dispatch(message);
 	if (message.type === "region") {
 		command.value = "";
