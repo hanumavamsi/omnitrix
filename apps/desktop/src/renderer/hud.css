@@ -1,0 +1,65 @@
+html,
+body {
+	margin: 0;
+	height: 100%;
+	overflow: hidden;
+	background: transparent;
+}
+
+#panel {
+	position: fixed;
+	box-sizing: border-box;
+	width: min(420px, calc(100vw - 16px));
+	overflow: auto;
+	padding: 10px 32px 10px 12px;
+	background: rgba(8, 10, 9, 0.94);
+	color: #dfe8e3;
+	border: 1px solid #00ff66;
+	box-shadow: 0 0 12px rgba(0, 255, 102, 0.25);
+	font:
+		13px / 1.5 "JetBrains Mono",
+		Consolas,
+		monospace;
+	white-space: pre-wrap;
+	user-select: text;
+}
+
+#panel[hidden] {
+	display: none;
+}
+
+#close {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: #00ff66;
+	font: inherit;
+	cursor: pointer;
+}
+
+#close:hover,
+#close:focus-visible {
+	background: rgba(0, 255, 102, 0.15);
+	outline: none;
+}
+
+#answer.waiting::after {
+	content: "▍";
+	color: #00ff66;
+	animation: blink 1s steps(1) infinite;
+}
+
+#answer.error {
+	color: #ff6b6b;
+}
+
+@keyframes blink {
+	50% {
+		opacity: 0;
+	}
+}

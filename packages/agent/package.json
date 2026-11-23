@@ -2,5 +2,15 @@
 	"name": "@omnitrix/agent",
 	"version": "0.0.0",
 	"private": true,
-	"type": "module"
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc -p ."
+	},
+	"dependencies": {
+		"@ai-sdk/google": "^4.0.124",
+		"ai": "^7.0.179"
+	}
 }
