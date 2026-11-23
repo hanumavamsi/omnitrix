@@ -8,13 +8,15 @@ export type HudMessage =
 	| { type: "open"; x: number; y: number; area: Area }
 	| { type: "chunk"; text: string }
 	| { type: "notice"; text: string }
-	| { type: "error"; text: string }
+	| { type: "error"; text: string; retry: boolean }
+	| { type: "fallback" } // the fallback model is answering
 	| { type: "done" };
 
 const api = {
 	onMessage: (handler: (message: HudMessage) => void) =>
 		ipcRenderer.on("hud", (_event, message: HudMessage) => handler(message)),
 	close: () => ipcRenderer.send("hud:close"),
+	retry: () => ipcRenderer.send("hud:retry"),
 	pointerOverPanel: (over: boolean) =>
 		ipcRenderer.send("hud:pointer-over-panel", over),
 };

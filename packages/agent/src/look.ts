@@ -1,4 +1,10 @@
-import { type LanguageModel, type ModelMessage, streamText } from "ai";
+import {
+	APICallError,
+	type LanguageModel,
+	type ModelMessage,
+	RetryError,
+	streamText,
+} from "ai";
 import type { Settings } from "./settings.ts";
 
 // Placeholder: ticket #8 tunes this against fixture captures.
@@ -15,16 +21,72 @@ export type LookRequest = {
 	/** Resolves a "provider:model" id. Injected so tests can pass mock models. */
 	getModel: (id: string) => LanguageModel;
 	signal: AbortSignal;
+	/** Called when the main model failed and the fallback model takes over; tag the answer. */
+	onFallback?: () => void;
 };
 
 export type LookResult = {
-	/** Answer text as it streams. Throws on a model error; ends quietly on abort. */
+	/** Answer text as it streams. Throws a LookError on failure; ends quietly on abort. */
 	textStream: AsyncIterable<string>;
 };
 
+export type LookErrorKind =
+	| "busy"
+	| "rate-limit"
+	| "daily-limit"
+	| "bad-key"
+	| "blocked"
+	| "network"
+	| "aborted"
+	| "other";
+
+export class LookError extends Error {
+	constructor(
+		readonly kind: LookErrorKind,
+		cause?: unknown,
+	) {
+		super(`Look failed: ${kind}`, { cause });
+		this.name = "LookError";
+	}
+}
+
+// A bad key or blocked content fails the same way on any model, so only these get the fallback.
+const FALLBACK_KINDS: LookErrorKind[] = [
+	"busy",
+	"rate-limit",
+	"daily-limit",
+	"network",
+];
+
 export function look(request: LookRequest): LookResult {
+	return { textStream: withFallback(request) };
+}
+
+async function* withFallback(request: LookRequest) {
+	let streamedText = false;
+	try {
+		for await (const text of answer(request, request.settings.lookModel)) {
+			streamedText = true;
+			yield text;
+		}
+		return;
+	} catch (error) {
+		const lookError = toLookError(error, request.signal);
+		// Once text is on screen a second model would restart the answer mid-way.
+		if (streamedText || !FALLBACK_KINDS.includes(lookError.kind))
+			throw lookError;
+	}
+	request.onFallback?.();
+	try {
+		yield* answer(request, request.settings.lookFallbackModel);
+	} catch (error) {
+		throw toLookError(error, request.signal);
+	}
+}
+
+function answer(request: LookRequest, modelId: string) {
 	const result = streamText({
-		model: request.getModel(request.settings.lookModel),
+		model: request.getModel(modelId),
 		instructions: LOOK_SYSTEM_PROMPT,
 		messages: [
 			...request.conversation,
@@ -32,16 +94,47 @@ export function look(request: LookRequest): LookResult {
 		],
 		abortSignal: request.signal,
 		maxRetries: 1,
+		onError: () => {}, // textOf rethrows the error; the SDK's default would also log the raw provider body
 	});
-	return { textStream: textOf(result.stream) };
+	return textOf(result.stream);
 }
 
 // The SDK's own textStream swallows errors; this one rethrows them so the HUD can show them.
 async function* textOf(
-	parts: AsyncIterable<{ type: string; text?: string; error?: unknown }>,
+	parts: AsyncIterable<{
+		type: string;
+		text?: string;
+		error?: unknown;
+		finishReason?: string;
+	}>,
 ) {
 	for await (const part of parts) {
 		if (part.type === "text-delta" && part.text) yield part.text;
 		else if (part.type === "error") throw part.error;
+		// Gemini reports blocked content as a normal finish, not as an error.
+		else if (part.type === "finish" && part.finishReason === "content-filter")
+			throw new LookError("blocked");
 	}
+}
+
+// Sorts any failure into a kind the HUD can explain in a few words. See the #5 commit for the SDK details.
+function toLookError(error: unknown, signal: AbortSignal): LookError {
+	if (error instanceof LookError) return error;
+	if (signal.aborted) return new LookError("aborted", error);
+	// After its own retry the SDK wraps the attempts in a RetryError; the last attempt says why.
+	const cause = RetryError.isInstance(error) ? error.lastError : error;
+	if (!APICallError.isInstance(cause)) return new LookError("other", error);
+	const status = cause.statusCode;
+	const body = cause.responseBody ?? "";
+	if (status === undefined) return new LookError("network", error); // fetch failed, no response
+	if (status === 401 || status === 403 || body.includes("API_KEY_"))
+		return new LookError("bad-key", error);
+	// Gemini's 429 body names the quota that ran out, e.g. GenerateRequestsPerDayPerProjectPerModel-FreeTier.
+	if (status === 429)
+		return new LookError(
+			body.includes("PerDay") ? "daily-limit" : "rate-limit",
+			error,
+		);
+	if (status === 408 || status >= 500) return new LookError("busy", error);
+	return new LookError("other", error);
 }
