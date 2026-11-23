@@ -148,3 +148,19 @@ Results pages run about 12k tokens. Calendars blow up the snapshot, so it needs 
 **Decision needed (for the grill)**
 
 - D2 flight hero: Google Flights works for search and compare. Booking on IndiGo / Air India through Playwright is blocked. Options: (a) Look/compare on Google Flights, then hand off to the airline in the user's own browser for booking; (b) drive a normally launched Chrome via `connectOverCDP` instead of Playwright's launch (untested; it changes the detection surface, so check the sites' terms first); (c) a different booking site. YouTube (the first Act demo, D1) is fine as is.
+
+### 5b. Playwright attached over CDP (2026-11-23): airlines work
+
+The app starts Chrome itself with only `--remote-debugging-port=9333 --user-data-dir=<new profile> --no-first-run`, then calls `chromium.connectOverCDP("http://127.0.0.1:9333")` and uses the default page. Same human-paced flows, no stealth changes.
+
+| Flow | Result | `webdriver` |
+| --- | --- | --- |
+| IndiGo HYD→DEL | **PASS**: results page shows about 105 flights, from ₹8,719 | false |
+| Air India, same trip | **PASS**: 20 flights, from INR 9,185. The auth token call now succeeds. | false |
+| Google Flights (control) | **PASS**: 888 ms | false |
+
+- IndiGo's `403` on `api-6eskypulse.../ingest/v1/web/start` happens on every visit, even when the page works, so it's telemetry rather than a block.
+- Not isolated: which signal made the difference. Playwright's launch flags, `webdriver`, or the fresh profile could each explain it.
+- Tested once per site from this IP. Repeated visits are untested.
+- Air India's desktop layout (larger window) uses dropdown `option`s where the narrow layout uses modal buttons, so the agent can't rely on one fixed layout.
+- **Snapshot size on results pages**: IndiGo is 187k chars, 2,822 refs (about 47k tokens); Air India is 68k chars; Google Flights is 64k chars. These are much bigger than first measured, so scoping is mandatory.

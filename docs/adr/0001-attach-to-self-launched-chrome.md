@@ -1,0 +1,3 @@
+# Attach Playwright to a self-launched Chrome instead of letting Playwright launch it
+
+Spike 5 showed that IndiGo and Air India silently block Chrome launched by Playwright (`launchPersistentContext`). Spike 5b showed that the same flows pass when Omnitrix starts Chrome itself, with only `--user-data-dir` and `--remote-debugging-port`, and Playwright attaches with `connectOverCDP`. We attach. The cost is an open local CDP port while the browser runs (any local process could drive it), so the profile is dedicated and never holds the user's own logins or payment data. We did not test which launch signal triggered the block, so the block could come back.
