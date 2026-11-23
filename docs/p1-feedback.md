@@ -6,7 +6,7 @@ The owner tested P1 Look by hand and sent 9 suggestions. They are sorted below i
 
 | # | Suggestion | Notes |
 | --- | --- | --- |
-| 2 | "When the HUD is on, I can't take screenshots at all." Major flaw. | **Open question:** what exactly happens? The whole screenshot comes out black, the Snipping Tool (Win+Shift+S) can't be dragged, or the HUD is just missing (missing is by design: D13, Recordable off). Suspects: the HUD is a monitor-sized topmost window at `screen-saver` level with content protection (`main/hud.ts:55-56`), so it may sit above the snip overlay or blank the capture. |
+| 2 | "When the HUD is on, I can't take screenshots at all." Major flaw. | **Resolved (P1.1): Recordable on by default**, so the HUD shows in screenshots (D13). The black snip could not be reproduced: parked, reopen if it returns. Suspect: content protection (`WDA_EXCLUDEFROMCAPTURE`, `main/hud.ts:56`) when Recordable is off. |
 | 8 | After dragging a box, sometimes the question input isn't visible. | Likely cause: `placeQuestion` (`renderer/placement.ts:72`) clamps to the whole monitor, not the work area, so a low box puts the input behind the taskbar. Also, a box that is nearly full height puts the input on top of the box. **Open question:** a repro (where the box was). |
 
 ## B. Polish (small)

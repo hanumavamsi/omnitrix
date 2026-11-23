@@ -3,9 +3,9 @@ import { defaultSettings, parseSettings } from "./settings.ts";
 
 describe("parseSettings", () => {
 	it("fills missing settings with defaults", () => {
-		expect(parseSettings({ recordable: true })).toEqual({
+		expect(parseSettings({ recordable: false })).toEqual({
 			...defaultSettings,
-			recordable: true,
+			recordable: false,
 		});
 	});
 
