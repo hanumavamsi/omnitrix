@@ -14,8 +14,11 @@ const answer = document.getElementById("answer") as HTMLElement;
 const closeButton = document.getElementById("close") as HTMLButtonElement;
 
 // Below or above the cursor, whichever has more room, capped to that room so it never leaves the work area.
-function placeNear(x: number, y: number, area: Area) {
+function placeNear(cursorX: number, cursorY: number, area: Area) {
 	const bottom = area.y + area.height;
+	// The cursor can be on the taskbar, outside the work area.
+	const x = Math.min(Math.max(cursorX, area.x), area.x + area.width);
+	const y = Math.min(Math.max(cursorY, area.y), bottom);
 	const roomBelow = bottom - y - GAP - MARGIN;
 	const roomAbove = y - area.y - GAP - MARGIN;
 	const left = Math.min(
