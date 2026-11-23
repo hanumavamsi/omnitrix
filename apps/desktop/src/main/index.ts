@@ -70,8 +70,15 @@ async function onHotkey() {
 	const text = await grabSelection();
 	if (signal.aborted) return; // an even newer press took over during the grab
 
-	if (!text) return openHud("region");
+	// No key: say so before the user drags a region that can't be answered.
+	if (!text && getApiKey("google")) return openHud("region");
 	openHud("answer");
+	if (!text)
+		return sendToHud({
+			type: "notice",
+			text: "Add API key in Console",
+			openConsole: true,
+		});
 	session = newSession({ kind: "text", text });
 	await answer(signal);
 }
