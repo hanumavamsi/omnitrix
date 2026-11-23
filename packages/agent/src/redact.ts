@@ -1,4 +1,5 @@
 // Strips obvious secrets from text before it leaves the machine (L5). Pure: text in, redacted text + count out.
+// shortcut: misses unquoted lower-case `password=x` mid-sentence and short free-form secrets; add an entropy check if users hit it.
 
 export const REDACTED = "[redacted secret]";
 
