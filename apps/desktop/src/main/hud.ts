@@ -7,7 +7,7 @@ import {
 	ipcMain,
 	screen,
 } from "electron";
-import type { HudMessage } from "../preload/index.ts";
+import type { Area, HudMessage } from "../preload/index.ts";
 import {
 	GetForegroundWindow,
 	GetWindowThreadProcessId,
@@ -17,9 +17,17 @@ import {
 
 const huds = new Map<number, BrowserWindow>(); // display.id -> its HUD window
 let shown: BrowserWindow | null = null;
+let shownDisplay: Display | null = null;
 let returnFocusTo: unknown = null; // HWND of the app the user came from
-let recordable = false;
-let onClosed = () => {};
+let options: HudOptions;
+
+type HudOptions = {
+	recordable: boolean;
+	panelPosition: "cursor" | "fixed";
+	onClosed: () => void;
+	onRegion: (display: Display, rect: Area, question: string) => void;
+	onFollowUp: (text: string) => void;
+};
 
 function createHud(display: Display) {
 	// D13: created on its own display and never moved; moving across mixed DPI rescales badly.
@@ -41,13 +49,16 @@ function createHud(display: Display) {
 	win.setBounds(display.bounds); // Windows clamps new windows to the work area
 	win.setIgnoreMouseEvents(true, { forward: true }); // click-through; the panel turns it off on hover
 	win.setAlwaysOnTop(true, "screen-saver");
-	win.setContentProtection(!recordable); // hidden from screenshots unless Recordable is on
+	win.setContentProtection(!options.recordable); // hidden from screenshots unless Recordable is on
 	// Esc is ours only while the HUD has focus; the user's apps need it back once they click away (L14).
 	win.on(
 		"focus",
 		() => win === shown && globalShortcut.register("Escape", closeHud),
 	);
 	win.on("blur", () => globalShortcut.unregister("Escape"));
+	// Answers are model output: a link in them must never navigate or open our window.
+	win.webContents.on("will-navigate", (event) => event.preventDefault());
+	win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 	if (process.env.ELECTRON_RENDERER_URL)
 		win.loadURL(process.env.ELECTRON_RENDERER_URL);
 	else win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
@@ -61,12 +72,8 @@ function rebuildHuds() {
 	for (const display of screen.getAllDisplays()) createHud(display);
 }
 
-export function setupHud(options: {
-	recordable: boolean;
-	onClosed: () => void;
-}) {
-	recordable = options.recordable;
-	onClosed = options.onClosed;
+export function setupHud(hudOptions: HudOptions) {
+	options = hudOptions;
 	rebuildHuds();
 	screen.on("display-added", rebuildHuds);
 	screen.on("display-removed", rebuildHuds);
@@ -77,6 +84,13 @@ export function setupHud(options: {
 			forward: true,
 		});
 	});
+	ipcMain.on("hud:region", (event, rect: Area, question: string) => {
+		if (!shownDisplay || event.sender !== shown?.webContents) return;
+		options.onRegion(shownDisplay, rect, question);
+	});
+	ipcMain.on("hud:follow-up", (_event, text: string) =>
+		options.onFollowUp(text),
+	);
 }
 
 /** Call before grabbing the selection, while the user's app is still in front. */
@@ -94,32 +108,42 @@ export function isHudFocused() {
 function hideHuds() {
 	for (const win of huds.values()) win.hide();
 	shown = null;
+	shownDisplay = null;
 	globalShortcut.unregister("Escape");
 }
 
-/** Shows an empty panel near the cursor on the monitor the cursor is on. */
-export function openHud() {
+/** Shows the HUD on the monitor under the cursor: an empty answer panel there, or the dim region screen. */
+export function openHud(mode: "answer" | "region") {
 	const cursor = screen.getCursorScreenPoint();
 	const display = screen.getDisplayNearestPoint(cursor);
 	hideHuds();
 	shown = huds.get(display.id) ?? null;
 	if (!shown) return;
-	// The renderer works in CSS px, which equal DIP relative to its own display.
-	sendToHud({
-		type: "open",
-		x: cursor.x - display.bounds.x,
-		y: cursor.y - display.bounds.y,
-		area: {
-			x: display.workArea.x - display.bounds.x,
-			y: display.workArea.y - display.bounds.y,
-			width: display.workArea.width,
-			height: display.workArea.height,
-		},
-	});
-	shown.setIgnoreMouseEvents(true, { forward: true }); // the pointer may have left over the old panel
+	shownDisplay = display;
+	if (mode === "region") {
+		sendToHud({ type: "region" });
+		shown.setIgnoreMouseEvents(false); // the whole screen takes the drag
+	} else {
+		// The renderer works in CSS px, which equal DIP relative to its own display.
+		const { x, y } = display.bounds;
+		showAnswer({ x: cursor.x - x, y: cursor.y - y, width: 0, height: 0 });
+	}
 	shown.show();
 	shown.focus();
 	globalShortcut.register("Escape", closeHud);
+}
+
+/** Starts a fresh answer panel next to box, on the monitor the HUD is already showing. */
+export function showAnswer(box: Area) {
+	if (!shown || !shownDisplay) return;
+	const { bounds, workArea } = shownDisplay;
+	sendToHud({
+		type: "answer",
+		box,
+		area: { ...workArea, x: workArea.x - bounds.x, y: workArea.y - bounds.y },
+		position: options.panelPosition,
+	});
+	shown.setIgnoreMouseEvents(true, { forward: true }); // click-through again; the pointer may not be over the panel
 }
 
 export function sendToHud(message: HudMessage) {
@@ -132,7 +156,7 @@ export function closeHud() {
 		returnFocusTo && IsWindow(returnFocusTo) ? returnFocusTo : null;
 	if (!target) shown?.blur(); // no app to return to: at least don't leave focus on our hidden HUD
 	hideHuds();
-	onClosed();
+	options.onClosed();
 	if (target) SetForegroundWindow(target);
 	returnFocusTo = null;
 }

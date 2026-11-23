@@ -1,5 +1,7 @@
+export type { ModelMessage } from "ai";
 export {
 	type Capture,
+	DEFAULT_REGION_PROMPT,
 	LOOK_SYSTEM_PROMPT,
 	type LookRequest,
 	type LookResult,
