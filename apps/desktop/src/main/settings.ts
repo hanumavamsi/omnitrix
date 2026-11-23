@@ -1,27 +1,38 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { defaultSettings, type Settings } from "@omnitrix/agent";
+import { defaultSettings, parseSettings, type Settings } from "@omnitrix/agent";
 import { app } from "electron";
 
-/** Reads %APPDATA%\omnitrix\settings.json, creating it with defaults on first run. */
-export function loadSettings(): Settings {
-	const dir = join(app.getPath("appData"), "omnitrix");
-	const file = join(dir, "settings.json");
-	if (!existsSync(file)) {
-		mkdirSync(dir, { recursive: true });
-		writeFileSync(file, JSON.stringify(defaultSettings, null, "\t"));
+/** %APPDATA%\omnitrix: settings.json and the encrypted keys live here. */
+export const dataDir = join(app.getPath("appData"), "omnitrix");
+const file = join(dataDir, "settings.json");
+
+let current = loadSettings();
+
+function loadSettings(): Settings {
+	if (!existsSync(file)) return writeSettings(defaultSettings);
+	try {
+		return parseSettings(JSON.parse(readFileSync(file, "utf8")));
+	} catch (error) {
+		// Left on disk untouched so the user can fix it; the next save from the Console overwrites it.
+		console.error(`Bad ${file}, using defaults:`, error);
 		return { ...defaultSettings };
 	}
-	// Missing keys (older file) fall back to defaults.
-	return { ...defaultSettings, ...JSON.parse(readFileSync(file, "utf8")) };
 }
 
-/** Dev only: the key comes from GEMINI_API_KEY or the repo's git-ignored .env. The Console replaces this (#6). */
-export function loadApiKey(): string | undefined {
-	if (!process.env.GEMINI_API_KEY && !app.isPackaged) {
-		try {
-			process.loadEnvFile(join(app.getAppPath(), "..", "..", ".env"));
-		} catch {} // no .env: fine, the HUD says the key is missing
-	}
-	return process.env.GEMINI_API_KEY || undefined;
+function writeSettings(settings: Settings): Settings {
+	mkdirSync(dataDir, { recursive: true });
+	writeFileSync(file, JSON.stringify(settings, null, "\t"));
+	return { ...settings };
+}
+
+/** Read this at use time, not once at startup: the Console can change it any moment. */
+export function getSettings(): Settings {
+	return current;
+}
+
+/** Validates (the input comes from a renderer), saves and returns the new settings. Throws on a bad value. */
+export function saveSettings(raw: unknown): Settings {
+	current = writeSettings(parseSettings(raw));
+	return current;
 }

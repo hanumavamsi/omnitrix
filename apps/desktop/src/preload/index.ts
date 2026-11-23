@@ -7,7 +7,7 @@ export type Area = { x: number; y: number; width: number; height: number };
 export type HudMessage =
 	| { type: "open"; x: number; y: number; area: Area }
 	| { type: "chunk"; text: string }
-	| { type: "notice"; text: string }
+	| { type: "notice"; text: string; openConsole?: boolean } // openConsole: add an "Open Console" button
 	| { type: "error"; text: string }
 	| { type: "done" };
 
@@ -15,6 +15,7 @@ const api = {
 	onMessage: (handler: (message: HudMessage) => void) =>
 		ipcRenderer.on("hud", (_event, message: HudMessage) => handler(message)),
 	close: () => ipcRenderer.send("hud:close"),
+	openConsole: () => ipcRenderer.send("hud:open-console"),
 	pointerOverPanel: (over: boolean) =>
 		ipcRenderer.send("hud:pointer-over-panel", over),
 };

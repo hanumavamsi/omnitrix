@@ -52,6 +52,14 @@ window.omni.onMessage((message) => {
 		case "notice":
 			answer.className = "";
 			answer.textContent = message.text;
+			if (message.openConsole) {
+				const button = document.createElement("button");
+				button.type = "button";
+				button.className = "action";
+				button.textContent = "Open Console";
+				button.addEventListener("click", () => window.omni.openConsole());
+				answer.append("\n", button);
+			}
 			break;
 		case "error":
 			answer.className = "error";
