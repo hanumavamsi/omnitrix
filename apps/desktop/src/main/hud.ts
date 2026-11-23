@@ -157,6 +157,11 @@ function hideHuds() {
 	globalShortcut.unregister("Escape");
 }
 
+/** The display's work area (no taskbar), relative to the display like the renderer's boxes. */
+function workAreaOf({ bounds, workArea }: Display): Area {
+	return { ...workArea, x: workArea.x - bounds.x, y: workArea.y - bounds.y };
+}
+
 /** Shows the HUD on the monitor under the cursor: an empty answer panel there, or the dim region screen. */
 export function openHud(mode: "answer" | "region") {
 	const cursor = screen.getCursorScreenPoint();
@@ -166,7 +171,7 @@ export function openHud(mode: "answer" | "region") {
 	if (!shown) return;
 	shownDisplay = display;
 	if (mode === "region") {
-		sendToHud({ type: "region" });
+		sendToHud({ type: "region", area: workAreaOf(display) });
 		shown.setIgnoreMouseEvents(false); // the whole screen takes the drag
 	} else {
 		// The renderer works in CSS px, which equal DIP relative to its own display.
@@ -181,11 +186,10 @@ export function openHud(mode: "answer" | "region") {
 /** Starts a fresh answer panel next to box, on the monitor the HUD is already showing. */
 export function showAnswer(box: Area) {
 	if (!shown || !shownDisplay) return;
-	const { bounds, workArea } = shownDisplay;
 	sendToHud({
 		type: "answer",
 		box,
-		area: { ...workArea, x: workArea.x - bounds.x, y: workArea.y - bounds.y },
+		area: workAreaOf(shownDisplay),
 		position: getSettings().panelPosition, // read now: the Console can change it
 	});
 	shown.setIgnoreMouseEvents(true, { forward: true }); // click-through again; the pointer may not be over the panel
