@@ -109,6 +109,12 @@ export function openHud() {
 		type: "open",
 		x: cursor.x - display.bounds.x,
 		y: cursor.y - display.bounds.y,
+		area: {
+			x: display.workArea.x - display.bounds.x,
+			y: display.workArea.y - display.bounds.y,
+			width: display.workArea.width,
+			height: display.workArea.height,
+		},
 	});
 	shown.setIgnoreMouseEvents(true, { forward: true }); // the pointer may have left over the old panel
 	shown.show();
@@ -121,10 +127,12 @@ export function sendToHud(message: HudMessage) {
 }
 
 export function closeHud() {
+	// Hiding a focused window doesn't hand focus back on Windows. IsWindow: that app may have closed meanwhile.
+	const target =
+		returnFocusTo && IsWindow(returnFocusTo) ? returnFocusTo : null;
+	if (!target) shown?.blur(); // no app to return to: at least don't leave focus on our hidden HUD
 	hideHuds();
 	onClosed();
-	// Hiding a focused window doesn't hand focus back on Windows. IsWindow: that app may have closed meanwhile.
-	if (returnFocusTo && IsWindow(returnFocusTo))
-		SetForegroundWindow(returnFocusTo);
+	if (target) SetForegroundWindow(target);
 	returnFocusTo = null;
 }

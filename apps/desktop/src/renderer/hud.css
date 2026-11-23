@@ -20,8 +20,11 @@ body {
 		13px / 1.5 "JetBrains Mono",
 		Consolas,
 		monospace;
-	white-space: pre-wrap;
 	user-select: text;
+}
+
+#answer {
+	white-space: pre-wrap; /* on #answer only: on #panel the markup's newlines render as a blank line */
 }
 
 #panel[hidden] {

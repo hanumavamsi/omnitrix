@@ -1,4 +1,4 @@
-import type { OmniApi } from "../preload/index.ts";
+import type { Area, OmniApi } from "../preload/index.ts";
 
 declare global {
 	interface Window {
@@ -13,15 +13,16 @@ const panel = document.getElementById("panel") as HTMLElement;
 const answer = document.getElementById("answer") as HTMLElement;
 const closeButton = document.getElementById("close") as HTMLButtonElement;
 
-// Below or above the cursor, whichever has more room, capped to that room so it never runs off-screen.
-function placeNear(x: number, y: number) {
-	const roomBelow = innerHeight - y - GAP - MARGIN;
-	const roomAbove = y - GAP - MARGIN;
+// Below or above the cursor, whichever has more room, capped to that room so it never leaves the work area.
+function placeNear(x: number, y: number, area: Area) {
+	const bottom = area.y + area.height;
+	const roomBelow = bottom - y - GAP - MARGIN;
+	const roomAbove = y - area.y - GAP - MARGIN;
 	const left = Math.min(
-		Math.max(x, MARGIN),
-		innerWidth - panel.offsetWidth - MARGIN,
+		Math.max(x, area.x + MARGIN),
+		area.x + area.width - panel.offsetWidth - MARGIN,
 	);
-	panel.style.left = `${Math.max(MARGIN, left)}px`;
+	panel.style.left = `${Math.max(area.x + MARGIN, left)}px`;
 	if (roomBelow >= roomAbove) {
 		Object.assign(panel.style, {
 			top: `${y + GAP}px`,
@@ -43,7 +44,7 @@ window.omni.onMessage((message) => {
 			answer.textContent = "";
 			answer.className = "waiting";
 			panel.hidden = false;
-			placeNear(message.x, message.y);
+			placeNear(message.x, message.y, message.area);
 			break;
 		case "chunk":
 			answer.append(message.text);

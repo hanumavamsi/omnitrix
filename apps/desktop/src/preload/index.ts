@@ -1,9 +1,11 @@
 // The only bridge between the HUD page and the main process.
 import { contextBridge, ipcRenderer } from "electron";
 
-/** Main -> HUD messages. x/y are the cursor in CSS px of the HUD's monitor. */
+export type Area = { x: number; y: number; width: number; height: number };
+
+/** Main -> HUD messages. x/y are the cursor and area the work area (no taskbar), in CSS px of the HUD's monitor. */
 export type HudMessage =
-	| { type: "open"; x: number; y: number }
+	| { type: "open"; x: number; y: number; area: Area }
 	| { type: "chunk"; text: string }
 	| { type: "notice"; text: string }
 	| { type: "error"; text: string }
