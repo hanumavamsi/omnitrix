@@ -200,6 +200,7 @@ async function answer(signal: AbortSignal, followUp?: string, retry = false) {
 
 const logError = (error: unknown) => console.error("Look failed:", error);
 
+app.setName("Omnitrix"); // dialog titles; the package name would show otherwise
 app.whenReady().then(() => {
 	setupHud({
 		recordable: getSettings().recordable,

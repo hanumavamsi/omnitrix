@@ -211,6 +211,7 @@ window.omni.onMessage((message: HudMessage) => {
 			dim.hidden = true;
 			transcript.replaceChildren();
 			followUp.value = "";
+			followUp.hidden = false;
 			startAnswer();
 			panel.hidden = false;
 			place(message.box, message.area, message.position);
@@ -222,6 +223,7 @@ window.omni.onMessage((message: HudMessage) => {
 			break;
 		case "notice":
 			showText("answer", message.text, message.openConsole);
+			followUp.hidden = true; // a notice has no session to follow up on
 			break;
 		case "error":
 			showText("answer error", message.text, message.openConsole);
