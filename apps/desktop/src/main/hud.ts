@@ -31,8 +31,10 @@ type HudOptions = {
 
 function createHud(display: Display) {
 	// D13: created on its own display and never moved; moving across mixed DPI rescales badly.
+	// 1px short of the monitor: a topmost window covering it exactly counts as fullscreen and hides the taskbar.
+	const bounds = { ...display.bounds, height: display.bounds.height - 1 };
 	const win = new BrowserWindow({
-		...display.bounds,
+		...bounds,
 		show: false,
 		frame: false,
 		transparent: true,
@@ -46,7 +48,7 @@ function createHud(display: Display) {
 			preload: join(import.meta.dirname, "../preload/index.cjs"),
 		},
 	});
-	win.setBounds(display.bounds); // Windows clamps new windows to the work area
+	win.setBounds(bounds); // Windows clamps new windows to the work area
 	win.setIgnoreMouseEvents(true, { forward: true }); // click-through; the panel turns it off on hover
 	win.setAlwaysOnTop(true, "screen-saver");
 	win.setContentProtection(!options.recordable); // hidden from screenshots unless Recordable is on
